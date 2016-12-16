@@ -1,7 +1,7 @@
 # ChaosFromOrder
 High-security ciphers that can be done by hand, coded in JavaScript
 
-This page contains a number of JavaScript-coded files that demonstrate different encryption methods that can be performed by hand. They require only pencil and paper, plus maybe a ready-made Tabula Recta or a set of Scrabble tiles. Descriptions on the different ciphers can be found at my blog: https://prgomez.com
+This page contains a number of JavaScript-coded files that demonstrate different encryption methods that can be performed by hand. They require only pencil and paper, plus maybe a ready-made Tabula Recta or a set of Scrabble tiles. Fairly long articles on the different ciphers can be found at my blog: https://prgomez.com
 
 Here's a list of the files and what they do (LFG means lagged Fibonacci generator):
 
