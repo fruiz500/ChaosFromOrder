@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="fibofile.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>FiboFile encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM, autokey">
+<meta name="Description" content="FiboFile encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="tripletext-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 22px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+.blink {
+	-webkit-animation: blink .75s linear infinite;
+	-moz-animation: blink .75s linear infinite;
+	-ms-animation: blink .75s linear infinite;
+	-o-animation: blink .75s linear infinite;
+	animation: blink .75s linear infinite;
+}
+ @-webkit-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-moz-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-ms-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-o-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+</style>
+
+<!--Now the JavaScript code-->
+<script>
+var	base64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
+	base64B1 = base64,								//for scrambled alphabet
+	base64B2 = base64,
+	base64BArray1 = new Array(64),				//this contains only the indices, as an array
+	base64BArray2 = new Array(64),
+	base64Binverse1 = new Array(64),				//for the inverse lookup
+	base64Binverse2 = new Array(64);
+
+var seedArray;
+//processes key texts and displays in box
+function processKeys(){
+	var key1 = btoa(keyBox1.value.trim()).replace(/=+$/,'');		//remove ending "=" characters
+	makeAlphabet(key1,1);	
+	if(keyBox2.value.trim()){
+		var key2 = btoa(keyBox2.value.trim()).replace(/=+$/,'');
+		makeAlphabet(key2,2)
+	}else{
+		var key2 = base64;
+		base64B2 = base64;
+		for(var i = 0; i < 64; i++){
+			base64BArray2[i] = i;
+			base64Binverse2[i] = i
+		}
+		base64KeyBox2.innerHTML = base64
+	}
+	if(seedBox.value.trim()){
+		var seed = btoa(seedBox.value.trim()).replace(/=+$/,'')
+	}else{
+		var seed = key1
+	}
+	base64SeedBox.innerHTML = seed;
+	var length = seed.length;
+	seedArray = new Array(length);
+	for(var i = 0; i < length; i++){
+		seedArray[i] = base64.indexOf(seed.charAt(i))
+	}
+}
+
+//makes the scrambled alphabet, starting from a string
+function makeAlphabet(string,number){
+	var result = '', alpha = "/+9876543210zyxwvutsrqponmlkjihgfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA",
+		stringLength = string.length;
+	for(var i = 0; i < stringLength; i++){
+		var letter = string.charAt(i);
+		if(result.indexOf(letter) == -1){			//letter not picked yet
+			result += letter;
+			var reg = new RegExp(letter);
+			alpha = alpha.replace(reg,'')
+		}else{										//letter was picked, so take first letter before it in the alphabet that is still available
+			var index = base64.indexOf(letter),
+				alphaLength = alpha.length;
+			for(var j = 0; j < alphaLength; j++){
+				if(base64.indexOf(alpha.charAt(j)) < index){
+					result += alpha.charAt(j);
+					alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+					break
+				}else if(j == alphaLength - 1){
+					result += alpha.charAt(0);
+					alpha = alpha.slice(1)
+				}
+			}
+		}
+	}
+	if(number == 1){
+		if(result){base64B1 = result + alpha}else{base64B1 = base64};
+		for(var i = 0; i < 64; i++){
+			base64BArray1[i] = base64.indexOf(base64B1.charAt(i));
+			base64Binverse1[i] = base64B1.indexOf(base64.charAt(i))
+		}
+		base64KeyBox1.innerHTML = base64B1
+	}else{
+		if(result){base64B2 = result + alpha}else{base64B2 = base64};
+		for(var i = 0; i < 64; i++){
+			base64BArray2[i] = base64.indexOf(base64B2.charAt(i));
+			base64Binverse2[i] = base64B2.indexOf(base64.charAt(i))
+		}
+		base64KeyBox2.innerHTML = base64B2
+	}
+
+}
+
+//loads the plain file into its box
+function loadPlainFile(){
+	var fileToLoad = plainFile.files[0],
+		fileReader = new FileReader();
+	fileReader.onload = function(fileLoadedEvent){
+		var fileName = fileToLoad.name;
+		var URLFromFileLoaded = fileLoadedEvent.target.result;
+			plainBox.innerHTML = '<a id="plainFileLink" download="' + fileName + '" href="' + URLFromFileLoaded + '">' + fileName + '</a>'
+	};
+	fileReader.readAsDataURL(fileToLoad, "UTF-8");
+}
+
+//get base64 data from loaded file.
+function fileToBase64(fileLink){
+	return fileLink.href.split(',')[1].replace(/=+/,'')
+}
+
+//make file from base64 string, returns a string that can be placed in another element
+function base64ToFile(name,base64String,extension){
+	if(name.match('.fib')){
+		name = name.replace(/.fib/,'')
+	}else if(extension == 'fib'){
+		name += '.fib'
+	}
+	return '<a id="cipherFileLink" download="' + name + '" href="data:;base64,' + base64String + '"><b>' + name + '</a>'
+}
+
+//to start processing, with a blinking banner
+function startProcess(){
+	execMsg.innerHTML = '<span class="blink" style="color:blue;">PROCESSING</span>';
+	setTimeout(function(){
+		doComputation();
+	},20)
+}
+
+//clear Done message when clicking any button
+function clearDone(){
+	execMsg.innerHTML = ''
+}
+
+//this is the function that puts it all together. Called by the Execute button
+function doComputation(){
+	if(plainBox.innerHTML == '') return;															//stop if there is no plaintext
+
+	var	text = fileToBase64(plainFileLink),
+		lastChar = text.slice(-1);																	//save the last character for later
+	text = text.slice(0,-1);
+	
+	var seedLength = seedArray.length,
+		seedArray2 = new Array(seedLength);
+	if(encryptMode.checked && randomSeed.checked){										//per-message random seed if so chosen
+		var	dummySeed = '',
+			newIndex;
+		for(var i = 0; i < seedLength; i++){
+			newIndex = Math.floor(Math.random()*64);
+			seedArray2[i] = newIndex;			
+			dummySeed += base64.charAt(newIndex)
+		}
+		text = dummySeed + text
+	}	
+	var	length = text.length,
+		output = new Array(length),
+		textArray = new Array(length),
+		stream = new Array(length);
+		
+	//now fill textArray with digits
+	for(var i = 0; i < length; i++){
+		textArray[i] = base64.indexOf(text.charAt(i))
+	}
+
+	//if decrypting, extract the dummy seed if set that way
+	if(decryptMode.checked && randomSeed.checked){
+		for(var i = 0; i < seedLength; i++) seedArray2[i] = base64BArray2[(64 - base64Binverse1[textArray[i]] + seedArray[i]) % 64]
+	}
+	
+	//main calculation	
+	for(var i = 0; i < seedLength; i++){						//make keystream first
+		if(randomSeed.checked){
+			stream[i] = seedArray2[i]
+		}else{
+			stream[i] = seedArray[i]
+		}
+	}
+	for(var i = seedLength; i < length; i++){
+		stream[i] = base64BArray1[(64 - base64Binverse2[stream[i-seedLength]] + stream[i-seedLength+1]) % 64]
+	}
+	if(randomSeed.checked){
+		for(var i = 0; i < seedLength; i++) stream[i] = seedArray[i]				//correct this back, after the stream is generated
+	}
+	for(var i = 0; i < length; i++) output[i] = encryptMode.checked ? base64BArray1[(64 - base64Binverse2[textArray[i]] + stream[i]) % 64] : base64BArray2[(64 - base64Binverse1[textArray[i]] + stream[i]) % 64];		//subtract plaintext
+	
+	//do statistical tests now
+	keyStreamQuality64(output);
+
+	if(decryptMode.checked && randomSeed.checked) output = output.slice(seedLength);		//remove random seed after decryption
+	
+	//convert back to base64	and fill file link
+	for(var i = 0; i < length; i++){
+		output[i] = base64.charAt(output[i])
+	}
+	text = output.join('') + lastChar;	
+
+	cipherBox.innerHTML = base64ToFile(plainFileLink.innerHTML, text, 'fib');
+	execMsg.innerHTML = 'Done! See the result below'
+}
+
+//displays quality of the base64 keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test at distances from 1 to 10
+function keyStreamQuality64(array){
+	frequencies(array,64);
+	var chiNumber = chiSquared(array,64),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(array,64),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(array,64),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(array,64),
+		runsResult = runsNumber.toString().slice(0,6);
+	var ICnumber = coincidenceIndex(array,64),
+		ICresult = ICnumber.toString().slice(0,6);
+	var	corResult = corrAtDistance(array,64,1).toString().slice(0,6),
+		corResult2 = corrAtDistance(array,64,seedArray.length).toString().slice(0,6);
+	if(chiNumber > 77.7) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 5.9) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+	if(ICnumber > 0.02) ICresult = '<span style="color:red;">' + ICresult + '</span>';
+
+	qualityMsg.innerHTML = "Tests applied to the base64 output with number of characters: " + array.length + "<br>Chi-squared (less than 77.7 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 6) = " + entropyResult + "<br>Chars per run (should be close to 2.0) = " + runsResult + "<br>Index of coincidence (should be as low as 0.015625) = " + ICresult;
+	qualityMsg.innerHTML += "<br>Dependence Chi-squared of consecutive letters (less than 4300 is good) = " + corResult + "<br>Dependence Chi-squared of letters at seed length distance (less than 4300 is good) = " + corResult2;
+}
+
+var freqArray = [];				//used by a lot of the other functions, so might as well do the calculation just once
+//counts frequency for each digit in the given base. The input array contains numbers from 0 to base - 1
+function frequencies(array,base){
+	var length = array.length;
+	freqArray = new Array(base).fill(0);
+	for(var i = 0; i < length; i++) freqArray[array[i]]++
+}
+
+//chi-squared statistic of a array in a given base
+function chiSquared(array,base){
+	var	result = 0,
+		length = array.length;
+		expected = length / base,
+		operand = 0;
+	for(var i = 0; i < base; i++){
+		operand = freqArray[i] - expected;
+		result += (operand * operand) / expected
+	}
+	return result
+}
+
+//two-digit correlations at different distance, for a given base. Slow version. See below for fast one
+function corrArray(array,base,maxShift){
+	var	length = array.length,
+		output = new Array(maxShift),
+		data,result,operand,expected;	
+	for(var l = 1; l <= maxShift; l++){			//for each shift, do a 2-character chi-squared
+		result = 0;
+		for(var i = 0; i < base; i++){					//each first character
+			for(var j = 0; j < base; j++){				//each second character
+				data = 0;
+				expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+				if(expected > 0){										//in case a letter does not appear at all
+					for(var k = 0; k < length-l; k++){
+						if((array[k] == i) && (array[k+l] == j)) data++
+					}
+					operand = data - expected;
+					result += (operand * operand) / expected
+				}
+			}
+		}
+		output[l-1] = result
+	}
+	return output
+}
+
+//as above but for a given distance. Minimum is 1
+function corrAtDistance(array,base,distance){
+	var	length = array.length,
+		highIndex = length - distance;
+		data = 0,
+		result = 0,
+		operand = 0,
+		expected = 0,
+		freqTable = new Array(base);
+	for(var i = 0; i < base; i++) freqTable[i] = new Array(base).fill(0);
+	for(var k = 0; k < highIndex; k++){			//fill the table with data
+		freqTable[array[k]][array[k + distance]]++
+	}
+	for(var i = 0; i < base; i++){					//each first character
+		for(var j = 0; j < base; j++){				//each second character
+			data = 0;
+			expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+			if(expected > 0){										//in case a letter does not appear at all
+				operand = freqTable[i][j] - expected;
+				result += (operand * operand) / expected
+			}
+		}
+	}
+	return result
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive digits that are expected to be random
+function durbinWatson(array,base){
+	var num = 0,
+		denom = 0,
+		length = array.length,
+		operand = 0,
+		subtrand = (base - 1) / 2;
+	for(var i = 1; i < length; i++){
+		operand = array[i] - array[i-1];
+		num += operand * operand;
+		operand = array[i] - subtrand;
+		denom += operand * operand
+	}
+	return denom == 0 ? -1 : num/denom
+}
+
+//computes the entropy of a array of digits, in bits per digit
+function shannonEntropy(array,base){
+	var length = array.length,
+		entropy = 0,
+		frequency;
+	for(var i = 0; i < base; i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of binary digits per run, to see how correlated consecutive digits are (2.0 for true random) It assumes an even base, so it won't work for odd
+function runs(array,base){
+	var count = 1,
+		length = array.length,
+		cutoff = base - 1;
+	for(var i = 1; i < length; i++) count += (array[i]*2 > cutoff) ^ (array[i-1]*2 > cutoff);
+	return length / count
+}
+
+//computes Friedman's index of coincidence (IC)
+function coincidenceIndex(array,base){
+	var	length = array.length,
+		result = 0;
+	for(var i = 0; i < base; i++){
+		result += freqArray[i]*(freqArray[i] - 1)
+	}
+	return result / (length * (length - 1))
+}
+</script>
+</head>
+
+<body>
+<h1 align="center">FiboFile encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This page extends the FibonaRNG cipher, by F. Ruiz, so it can be used to encrypt files. The encryption is done using the base64 encoding of the file, which JavaScript handles easily. Essentially, the key set is used to generate a pseudo-random sequence of equal length as the plaintext data in base64, which is then subtracted from it using a Tabula Recta where the keys apply substitutions to input and output. In this implementation, the user can write an entirely separate seed of arbitrary length. The process for decryption is the same as for encryption.</p>
+<p>&nbsp;</p>
+<h2>Step 1. Key input and substitution</h2>
+<p>We begin by taking the user-supplied keys and seed and converting them to base64 through &quot;btoa&quot; operations. Then we make each base64 key this way: take the base64 key and write the different characters in the order they appear in the key, if a character appears again, write instead the first character before it in the base64 alphabet that is still available (wrap around to the end if needed); if after doing this there are base64 characters that did not appear in the key, write them behind in reverse order. Bear in mind that the keys and seed are case-sensitive. If you leave the key 2 box empty, the straight base64 alphabet will be used as key 2.</p>
+<h3>Key 1</h3>
+<textarea name="keyBox1" class="cssbox" id="keyBox1" style="font-size:larger;background-color:#E4F7FF;" title="Enter key 1 here" onKeyUp="processKeys();clearDone();"></textarea>
+<h3>Key 2</h3>
+<p>
+  <textarea name="keyBox2" class="cssbox" id="keyBox2" style="font-size:larger;background-color:#E4F7FF;" title="Enter key 2, or leave blank to use a straight alphabet" onKeyUp="processKeys();clearDone();"></textarea>
+</p>
+<p>If you want to use for the seed phase a key different from key 1, write it in this box, otherwise key 1 will be used also as seed:
+</p>
+<h3>Seed</h3>
+ <textarea name="seedBox" class="cssbox" id="seedBox" style="font-size:larger;background-color:#E4F7FF;" title="Enter the seed key, or leave blank to use key 1 again" onKeyUp="processKeys();"></textarea>
+<h3>Key 1 in base64</h3>
+<div id="base64KeyBox1" class="cssbox" style="font-family:monospace;"></div>
+<h3>Key  2 in base64</h3>
+<div id="base64KeyBox2" class="cssbox" style="font-family:monospace;"></div>
+<h3>Seed in base64</h3>
+<div id="base64SeedBox" class="cssbox" style="font-family:monospace;"></div>
+<p></p>
+<p>Here we tell the program whether or not to use a random seed of the same length instead, which is prepended to the plaintext before the keystream is added:</p>
+<p>&nbsp;&nbsp;
+  <input type="radio" name="seedModes" id="randomSeed" onClick="processKeys();" title='prepend 19 nulls, delete them on decryption' checked/>
+  &nbsp; Random seed&nbsp;&nbsp;
+  <input type="radio" name="seedModes" id="straightSeed" onClick="processKeys();" title="do not add or remove nulls" />
+  &nbsp; Straight seed</p>
+<p>Since the process is slightly different for encryption and decryption, we have to tell the program what we want to do:</p>
+<p>&nbsp;&nbsp;
+  <input type="radio" name="cryptModes" id="encryptMode" onClick="processKeys();" title='encrypt' checked/>
+  &nbsp; Encrypt&nbsp;&nbsp;
+  <input type="radio" name="cryptModes" id="decryptMode" onClick="processKeys();" title="decrypt" />
+  &nbsp; Decrypt</p>
+<p>&nbsp;</p>
+<h2>Step 2. Plain file / encrypted file</h2>
+<p>Now we input the file to be encrypted or decrypted as a link, using the button below.</p>
+<h3>File to be encrypted/decrypted</h3>
+<p>
+<div name="plainBox" class="cssbox" id="plainBox" style="font-size:larger;background-color:#E4F7FF;width:500px;" title="The loaded file will appear here, as a link" ></div>
+  <button class="cssbutton" id="clearPlainBtn" onClick="plainBox.innerHTML = ''; clearDone();">Clear</button>
+  <label for="plainFile"><span class="cssbutton">Load file</span></label>
+  <input class="custom-file-input" type="file" id="plainFile" onChange="loadPlainFile();" onClick="this.value = '';clearDone();" style="display:none;" title="open dialog to select file to load"/>
+</p>
+<p>&nbsp;</p>
+<h2>Step 3. Execution</h2>
+<p>And now, the all important button, followed by some statistics of the base64 output:</p>
+  <button class="cssbutton" id="executeBtn" onClick="startProcess();">Execute</button>
+&nbsp;&nbsp;&nbsp;<span id="execMsg"></span>
+<p><span id="qualityMsg">Information about output quality will appear here</span></p>
+<p>&nbsp;</p>
+<h2>Step 4. Encrypted / decrypted file</h2>
+<p>And here is the file after processing. It can be saved by right-clicking on it (in Chrome, only if below 1.5MB).</p>
+<h3>Encrypted/decrypted file</h3>
+<div id="cipherBox" class="cssbox" style="font-size:larger;background-color:#DCF2D1;width:500px;"></div>
+</body>
+</html>

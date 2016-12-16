@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="superaphid.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>SuperAphid encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM">
+<meta name="Description" content="SuperAphid encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="bookpad-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 22px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+</style>
+
+<script>
+var base5 = '01234',
+	base10 = '0123456789',
+	base25 = 'ABCDEFGHIKLMNOPQRSTUVWXYZ',
+	base25B = base25;									//this one will be scrambled according to the key text
+//	base25B2 = base25;
+
+//makes the scrambled alphabet, starting from a string, takes number 1 or number 2
+function makeAlphabet(string,number){
+	string = string.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'');
+	var result = '', alpha = "ZYXWVUTSRQPONMLKIHGFEDCBA",
+		stringLength = string.length;
+	for(var i = 0; i < stringLength; i++){
+		var letter = string.charAt(i);
+		if(result.indexOf(letter) == -1){			//letter not picked yet
+			result += letter;
+			var reg = new RegExp(letter);
+			alpha = alpha.replace(reg,'')
+		}else{										//letter was picked, so take first letter before it in the alphabet that is still available
+			var index = base25.indexOf(letter),
+				alphaLength = alpha.length;
+			for(var j = 0; j < alphaLength; j++){
+				if(base25.indexOf(alpha.charAt(j)) < index){
+					result += alpha.charAt(j);
+					alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+					break
+				}else if(j == alphaLength - 1){
+					result += alpha.charAt(0);
+					alpha = alpha.slice(1)
+				}
+			}
+		}
+	}
+//	if(number == 1){
+		if(result){base25B = result + alpha}else{base25B = base25}
+//	}else{
+//		if(result){base25B2 = result + alpha}else{base25B2 = base25}
+//	}
+}
+
+//fills the Polybius square according to the scrambled alphabet
+function fillSquare(){
+	var straightSquare = "    ~ @ # _ %\n   ----------\n~ | A B C D E\n@ | F G H I K\n# | L M N O P\n_ | Q R S T U\n% | V W X Y Z",
+		base5B = '~@#_%';
+	for(var i=0; i < straightSquare.length; i++){						//fill the body
+		var index = base25.indexOf(straightSquare.charAt(i));
+		if(index != -1) straightSquare = straightSquare.slice(0,i) + base25B.charAt(index) + straightSquare.slice(i+1);
+	}
+	for(var i = 0; i < 5; i++){										//fill the indices
+		var reg = new RegExp(base5B[i],"g");
+		straightSquare = straightSquare.replace(reg,base5[i])
+	}
+	square.innerText = straightSquare.toUpperCase()
+}
+
+function processKey(){
+	var partRegex = new RegExp('.{1,25}', "g"),
+		procKey = keyBox.value.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,''),
+		partsArray = procKey.match(partRegex),
+		rows = 0,
+		shortKey = '';
+
+	if(partsArray){rows = partsArray.length}else{partsArray = []};
+	if(rows < 2){shortKey = procKey}else{
+		var letters = new Array(rows),
+			actualRows;
+		for(var i = 0; i < 25; i++){
+			for(var j = 0; j < rows; j++){
+				letters[j] = partsArray[j].charAt(i)
+			}
+			letters = letters.filter(Boolean);
+			actualRows = letters.length;
+			var newLetterIndex = base25.indexOf(letters[0])
+			if(actualRows > 1){
+				for(var j = 1; j < actualRows; j++){
+					newLetterIndex = (25 - newLetterIndex + base25.indexOf(letters[j])) % 25
+				}
+			}
+			shortKey += base25.charAt(newLetterIndex)
+		}
+	}
+	
+	procKeyBox.innerHTML = partsArray.join('<br>') + '<br>-------------------------<br>' + shortKey;
+	makeAlphabet(shortKey);																	//make scrambled alphabet
+	fillSquare();
+	if(plainTextBox.value.trim()) execute()
+}
+
+//uses a Polybius square to convert plaintext into base5 digits (string array). "base" is a 25-character mixed alphabet
+function encodeText(text,base,hasNumbers){
+	var numberEncode = {'0':'a','1':'b','2':'c','3':'d','4':'e','5':'f','6':'g','7':'h','8':'i','9':'k'};
+	if(hasNumbers) text = text.replace(/[0-9]/g,function(match){return numberEncode[match];}).trim();		//encode numbers
+	text = text.toUpperCase().removeDiacritics().replace(/[^A-Z]/g,'').replace(/J/g,'I').trim();				//remove accents etc.
+	var i, index, digit1, digit2, length = text.length, digitArray = new Array(length*2);
+	for(var i = 0; i < text.length; i++){
+		index = base.indexOf(text.charAt(i)),
+		digit1 = Math.floor(index / 5),
+		digit2 = index % 5;
+		digitArray[2*i] = digit1.toString();
+		digitArray[2*i+1] = digit2.toString();
+	}
+	return digitArray
+}
+	
+//decodes encoded base5 digits (array) back to original text codes (array)
+function decodeDigits(digitArray){
+//	digits = digits.replace(/[^0-4]/g,'').trim();
+	var length = digitArray.length, output = new Array(length/2);
+	for(var i = 0; i < length; i+=2) output[i/2] = parseInt(digitArray[i]) * 5 + parseInt(digitArray[i+1]);
+	return output
+}
+
+//to remove accents etc.
+String.prototype.removeDiacritics = function() {
+    var diacritics = [
+        [/[\300-\306]/g, 'A'],
+        [/[\340-\346]/g, 'a'],
+        [/[\310-\313]/g, 'E'],
+        [/[\350-\353]/g, 'e'],
+        [/[\314-\317]/g, 'I'],
+        [/[\354-\357]/g, 'i'],
+        [/[\322-\330]/g, 'O'],
+        [/[\362-\370]/g, 'o'],
+        [/[\331-\334]/g, 'U'],
+        [/[\371-\374]/g, 'u'],
+        [/[\321]/g, 'N'],
+        [/[\361]/g, 'n'],
+        [/[\307]/g, 'C'],
+        [/[\347]/g, 'c'],
+		[/[\337]/g, 'ss'],
+    ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) {
+        s = s.replace(diacritics[i][0], diacritics[i][1]);
+    }
+    return s;
+}
+
+//key is an array containing a permutation, as in [0,1,2], [2,0,1], etc. String is an array
+function keyTranspose(stringArray,key){
+	var	length = stringArray.length,
+		rowLength = key.length,
+		output = [''];
+			
+	for(var i = 0; i < length; i++){
+		var block = key[i % rowLength];
+		if (output[block]){output[block] += stringArray[i]}else{output[block] = stringArray[i]}
+	}
+	return output.join('')
+}
+
+function reverseKeyTranspose(stringArray,key){
+	var	length = stringArray.length,
+		rowLength = key.length,
+		output = [''],	
+		columnLength = Math.ceil(length / rowLength),
+		firstShortColumn = length % rowLength;
+	if(firstShortColumn == 0) firstShortColumn = rowLength;
+	var	firstShortIndex = columnLength * firstShortColumn;
+	
+	//fill the table with nulls first
+	for(var i = 0; i < columnLength; i++){
+		for(var j = 0; j < rowLength; j++){
+			if(output[i]){output[i] += '='}else{output[i] = '='}
+		}
+	}
+	//now fill the table by columns and read off by rows
+	var index = 0;
+	for(var i = 0; i < rowLength; i++){
+		var column = key.indexOf(i);
+		if(column < firstShortColumn){
+			for(var j = 0; j < columnLength; j++){
+				output[j] = output[j].slice(0,column) + stringArray[index] + output[j].slice(column+1);
+				index++
+			}
+		}else{
+			for(var j = 0; j < columnLength - 1; j++){
+				output[j] = output[j].slice(0,column) + stringArray[index] + output[j].slice(column+1);
+				index++
+			}
+		}
+	}
+	return output.join('').slice(0,length)
+}
+
+//converts a mixed alphabet or part of it (no repeats) to a permutation array
+function alphabet2permutation(alphabet){
+	var length = alphabet.length,
+		output = new Array(length),
+		count = 0;
+	for(var i = 0; i < 25; i ++){
+		var letter = base25.charAt(i);
+		for(var j = 0; j < length; j++){
+			if(alphabet.charAt(j) == letter){
+				output[j] = count;
+				count++
+			}
+		}
+	}
+	return output
+}
+
+//checks that the transposition number is a legal integer
+function checkTransNumber(){
+	var trans = transNumber.value.trim();
+	if(isNaN(trans)){transNumber.value = '1'; return}
+	trans = Math.floor(trans);
+	transNumber.value = trans;
+	encodeTextBox()
+}
+
+//encodes plaintext box into digits. Different behavior encrypting or decrypting
+function encodeTextBox(){
+	if(decryptMode.checked){
+		encodedTextBox.innerText = encodeText(plainTextBox.value.trim(), base25B,false).join('');					//encrypted letters have no numbers	
+	}else{
+		encodedTextBox.innerText = encodeText(plainTextBox.value.trim(), base25B, true).join('');
+	}
+	execute();
+}
+
+//this is the function that puts it all together
+function execute(){
+	var	stages = encodedTextBox.innerText.trim().replace(/[^0-9]/g,''),
+		length = stages.length,
+		minColumns = Math.ceil(Math.sqrt(length)),
+		trans = transNumber.value;
+	if(minColumns < 25){var columns = minColumns}else{var columns = 25};	
+	
+	if(encryptMode.checked){
+		for(var i = 0; i < trans; i++){
+			var key = alphabet2permutation(base25B.slice(0,columns));
+			stages += '<br>' + keyTranspose(stages.slice(-length),key)
+		}
+	}else{
+		for(var i = trans-1; i >= 0; i--){					//reverse order when decrypting
+			var key = alphabet2permutation(base25B.slice(0,columns));
+			stages += '<br>' + reverseKeyTranspose(stages.slice(-length),key)
+		}
+	}
+	transBox.innerText = key;
+	stagesBox.innerHTML = "<pre>" + stages + "</pre>";
+	stages = stages.slice(-length);
+	cipherBox.innerHTML = stages;
+	
+	var resultArray = decodeDigits(stages),
+		resultText = new Array(length/2);
+	for(var i = 0; i < length/2; i++) resultText[i] = base25B.charAt(resultArray[i]);
+	
+	//now display
+	if(encryptMode.checked){
+		cipherTextBox.innerHTML = resultText.join('').match(/.{1,5}/g).join(' ');	 //on encryption, make codegroups
+	}else{
+		cipherTextBox.innerHTML = resultText.join('');	 							//on decryption, no codegroups
+	}
+	keyStreamQuality25(resultArray)
+}
+
+//displays quality of the keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test
+function keyStreamQuality25(array){
+	frequencies(array,25);
+	var chiNumber = chiSquared(array,25),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(array,25),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(array,25),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(array,25),
+		runsResult = runsNumber.toString().slice(0,6);
+	var ICnumber = coincidenceIndex(array,25),
+		ICresult = ICnumber.toString().slice(0,6);
+	var IDnumber = dependenceIndex(array,25),
+		IDresult = IDnumber.toString().slice(0,6);	
+	var	corResult = corrAtDistance(array,25,1).toString().slice(0,6);
+	if(chiNumber > 33.2) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 4.6) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+	if(ICnumber > 1.1 && ICnumber < 1.64){ICresult = '<span style="color:red;">' + ICresult + '</span>'}else if(ICnumber > 1.64){ICresult = '<span style="color:limegreen;">' + ICresult + '</span>'};
+	if(IDnumber > 1.2 && IDnumber < 4.5){IDresult = '<span style="color:red;">' + IDresult + '</span>'}else if(IDnumber > 4.5){IDresult = '<span style="color:limegreen;">' + IDresult + '</span>'};
+
+	qualityMsg.innerHTML = "Randomness tests applied to the letter output with number of characters: " + array.length + "<br>Chi-squared (less than 33.2 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 4.644) = " + entropyResult + "<br>Chars per run (should be close to 2.0) = " + runsResult + "<br>Index of coincidence (as low as 1 for random, around 1.65 for English text) = " + ICresult + "<br>Index of dependence (as low as 1 for random, around 4.65 for English text) = " + IDresult;;
+	qualityMsg.innerHTML += "<br>Dependence Chi-squared of consecutive letters (should be below 620) = " + corResult;
+}
+
+var freqArray = [];				//used by a lot of the other functions, so might as well do the calculation just once
+//counts frequency for each digit in the given base. The input array contains numbers from 0 to base - 1
+function frequencies(array,base){
+	var length = array.length;
+	freqArray = new Array(base).fill(0);
+	for(var i = 0; i < length; i++) freqArray[array[i]]++
+}
+
+//chi-squared statistic of a array in a given base
+function chiSquared(array,base){
+	var	result = 0,
+		length = array.length;
+		expected = length / base,
+		operand = 0;
+	for(var i = 0; i < base; i++){
+		operand = freqArray[i] - expected;
+		result += (operand * operand) / expected
+	}
+	return result
+}
+
+//two-digit test of dependence at different distance, for a given base. Slow version. See below for fast one
+function corrArray(array,base,maxShift){
+	var	length = array.length,
+		output = new Array(maxShift),
+		data,result,operand,expected;	
+	for(var l = 1; l <= maxShift; l++){			//for each shift, do a 2-character chi-squared
+		result = 0;
+		for(var i = 0; i < base; i++){					//each first character
+			for(var j = 0; j < base; j++){				//each second character
+				data = 0;
+				expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+				if(expected > 0){										//in case a letter does not appear at all
+					for(var k = 0; k < length-l; k++){
+						if((array[k] == i) && (array[k+l] == j)) data++
+					}
+					operand = data - expected;
+					result += (operand * operand) / expected
+				}
+			}
+		}
+		output[l-1] = result
+	}
+	return output
+}
+
+//as above but for a given distance. Minimum is 1
+function corrAtDistance(array,base,distance){
+	var	length = array.length,
+		highIndex = length - distance;
+		data = 0,
+		result = 0,
+		operand = 0,
+		expected = 0,
+		freqTable = new Array(base);
+	for(var i = 0; i < base; i++) freqTable[i] = new Array(base).fill(0);
+	for(var k = 0; k < highIndex; k++){			//fill the table with data
+		freqTable[array[k]][array[k + distance]]++
+	}
+	for(var i = 0; i < base; i++){					//each first character
+		for(var j = 0; j < base; j++){				//each second character
+			data = 0;
+			expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+			if(expected > 0){										//in case a letter does not appear at all
+				operand = freqTable[i][j] - expected;
+				result += (operand * operand) / expected
+			}
+		}
+	}
+	return result
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive digits that are expected to be random
+function durbinWatson(array,base){
+	var num = 0,
+		denom = 0,
+		length = array.length,
+		operand = 0,
+		subtrand = (base - 1) / 2;
+	for(var i = 1; i < length; i++){
+		operand = array[i] - array[i-1];
+		num += operand * operand;
+		operand = array[i] - subtrand;
+		denom += operand * operand
+	}
+	return denom == 0 ? -1 : num/denom
+}
+
+//computes the entropy of a array of digits, in bits per digit
+function shannonEntropy(array,base){
+	var length = array.length,
+		entropy = 0,
+		frequency;
+	for(var i = 0; i < base; i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of binary digits per run, to see how correlated consecutive digits are (2.0 for true random) It assumes an even base, so it won't work for odd
+function runs(array,base){
+	var count = 1,
+		length = array.length,
+		cutoff = base - 1;
+	for(var i = 1; i < length; i++) count += (array[i]*2 > cutoff) ^ (array[i-1]*2 > cutoff);
+	return length / count
+}
+
+//computes Friedman's index of coincidence (IC). Normalized to give value 1 for random
+function coincidenceIndex(array,base){
+	var	length = array.length,
+		result = 0;
+	for(var i = 0; i < base; i++){
+		result += freqArray[i]*(freqArray[i] - 1)
+	}
+	return result / (length * (length - 1))*base
+}
+
+
+//analogous to the index of coincidence but for two-letter groups. Normalized to give value 1 for random
+function dependenceIndex(array,base){
+	var	length = array.length,
+		data,
+		result = 0,
+		freqTable = new Array(base);
+	for(var i = 0; i < base; i++) freqTable[i] = new Array(base);
+	//fill table with zeros
+	for(var i = 0; i < base; i++){
+		for(var j = 0; j < base; j++){
+			freqTable[i][j] = 0
+		}
+	}
+	//fill the table with data
+	for(var k = 0; k < length - 1; k++){
+		freqTable[array[k]][array[k + 1]]++
+	}
+	//add everything
+	for(var i = 0; i < base; i++){
+		for(var j = 0; j < base; j++){
+			data = freqTable[i][j];
+			result += data * (data - 1)
+		}
+	}
+	return result / (length * (length - 1))*base*base
+}
+</script>
+
+</head>
+
+<body>
+<h1 align="center">Super-Aphid encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This page implements the paper-and-pencil &quot;Super-Aphid&quot; cipher by F. Ruiz, for those who wish to use a computer as a convenience. Super-Aphid is derived from Aphid, but uses a high-entropy key, and involves only two transpositions. All steps can be performed by hand without excessive effort. The process is described in detail in this article.</p>
+<p>Super-Aphid uses a key phrase made of a number of words. The first 25 letters are used for each of them.  A 5x5 <a href="https://en.wikipedia.org/wiki/Polybius_square" target="_blank">Polybius square</a> is then used to encode the letters in the plaintext into pairs of digits 0-4. Then the key phrase is used as key of a double columnar transposition. Finally, the digits are encoded back to letters, and those are transmitted out.</p>
+<p>To decrypt, the letters are split into digits using the Polybius square, then transpositions are undone in reverse order, and then the digits are decoded back to letters. The whole process is quite fast since transpositions are fast.</p>
+<p>&nbsp;</p>
+<h2>Step 1. Encoding set-up</h2>
+<p>First let us enter the passphrase  in the box below, which is shaded blue like all the other boxes where you can enter something.</p>
+<h3>Key Phrase</h3>
+<textarea id="keyBox" class="cssbox" onKeyUp="processKey();" style="font-size:larger;background-color:#E4F7FF;" title="Enter the key text taken from a book or whatever here. It must contain at least two words."></textarea>
+<p>Since the process to fill a Polybius square described below involves a maximum of 25 letters, we first concentrate the entropy of the (presumably longer) key phrase into 25 letters</p>
+<h3>Processed Key Phrase</h3>
+<div id="procKeyBox" class="cssbox" style="font-family:monospace;"><br>
+-------------------------</div>
+<p>A key-derived square would be made this way: take the key phrase and start filling the square, by rows, with the different letters and digits that appear as you read the sentence (I and J are considered the same letter), if a letter appears again, take instead the closest previous letter in the alphabet that is still available, wrapping to the end of the alphabet if necessary; then follow with the rest of the letters in reverse order. The resulting square is shown below. This will be the default square if so selected in the settings:</p>
+<pre id="square" align="center" style="font-size:xx-large;">
+    0 1 2 3 4
+   ----------
+0 | A B C D E
+1 | F G H I K
+2 | L M N O P
+3 | Q R S T U
+4 | V W X Y Z</pre>
+<p>To encode using the square, simply replace each letter or digit with the row number followed by the column number, ignoring spaces and punctuation. Examples with default encoding: s = 33, H = 12, C = 02.</p>
+<p>Let us now tell the program what we want to do by checking one of the two buttons below. The difference is that the transpositions are performed in reverse order.</p>
+<p> &nbsp;&nbsp;
+  <input type="radio" name="encryptingmodes" id="encryptMode"  onClick="encodeTextBox();" title="encrypt the plain text" checked/>
+  &nbsp; Encrypt&nbsp;&nbsp;
+  <input type="radio" name="encryptingmodes" id="decryptMode" onClick="encodeTextBox();" title="decrypt the cipher text" />
+&nbsp; Decrypt</p>
+<p>And how many transpositions will be used (minimum is 1)</p>
+<p>
+  <textarea name="transNumber" id="transNumber" style="font-size:larger;background-color:#E4F7FF;width:30px;height:30px" title="Number of transpositions" onKeyUp="checkTransNumber();" value="1"></textarea>&nbsp;Number of transpositions
+</p>
+<p>&nbsp;</p>
+<h2>Step 2. Plaintext encoding / Ciphertext preparation</h2>
+<p>Now we write the plaintext that we wish to encrypt or ciphertext to decrypt, which will be converted to lowercase. Spaces and punctuation marks are ignored. Diacritical marks (accents) are ignored. All J's are converted into I's. If there are any numbers, they are first converted to letters as in a = 0, ... i = 8, k = 9. Plaintext numbers are not decoded back upon decryption, but hopefully the user can spot them easily.</p>
+<h3>Plaintext / Ciphertext</h3>
+<textarea id="plainTextBox" class="cssbox" onKeyUp="encodeTextBox();" style="font-size:larger;background-color:#E4F7FF;" title="Enter your plaintext here"></textarea>
+<p>And this is the same text, encoded as decimal digits:</p>
+<h3>Encoded Plaintext / Ciphertext</h3>
+<div id="encodedTextBox" class="cssbox" style="font-size:larger;"></div>
+<h3>&nbsp;</h3>
+<h2>Step 3. Transpositions</h2>
+<p>The next step is to transpose this as many times as indicated above, using the mixed alphabet that makes the Polybius square as a permutation key. If the square root of the encoded plaintext length is less than 25, use that number (rounded up) of letters in the mixed alphabet, starting from the beginning, as transposition key. The table below shows the transposition key obtained, as a series of numbers:</p>
+<h3>Transposition key</h3>
+<div id="transBox" class="cssbox" ></div>
+<p></p>
+<p>And now we apply each one to the encoded plaintext. We do it this way: 1. Write the permutation key, and below it the plaintext making consecutive rows of the same length until the plaintext is exhausted. 2. Then read off the table by columns, beginning with the one with &quot;0&quot; at the heading, then the one headed by &quot;1&quot;, and so on. Some columns may be longer than others. The result of each transposition is represented as a row in the table below. The final row is the ciphertext, which is repeated in the first green box.</p>
+<p>If we are decrypting, the tables are filled by columns, following the order given by the key, and then read off by consecutive rows. The last word in the passphrase is used first, the first last.</p>
+<div id="stagesBox" class="cssbox" style=""></div>
+<p>&nbsp;</p>
+<h2>Step 4. Encrypted Ciphertext / Decrypted Plaintext</h2>
+<h3>Raw Ciphertext / Encoded Plaintext</h3>
+<div id="cipherBox" class="cssbox" style="font-family:monospace;font-size:larger;"></div>
+<p>Finally we decode the result back to letters using the Polybius square:</p>
+<h3>Text-based Ciphertext / Final Plaintext</h3>
+<div id="cipherTextBox" class="cssbox" style="background-color:#DCF2D1;font-family:monospace;font-size:larger;"></div>
+<span id="qualityMsg">Some statistics on the ciphertest will appear here</span>
+</body>
+</html>

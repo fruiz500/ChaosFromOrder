@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="alphabet.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Mixed Alphabet Maker</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM, running-key">
+<meta name="Description" content="Mixed alphabet maker">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="tripletext-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 22px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+</style>
+
+<script>
+var	base26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+//	base26B = base26;								//for scrambled alphabet
+//	base26BArray = new Array(26);				//this contains only the indices, as an array
+	
+//makes the scrambled alphabet, starting from a string
+function makeAlphabet(string){
+	string = string.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'');
+	var result = '', alpha = "ZYXWVUTSRQPONMLKJIHGFEDCBA",
+		stringLength = string.length;
+	for(var i = 0; i < stringLength; i++){
+		var letter = string.charAt(i);
+		if(result.indexOf(letter) == -1){			//letter not picked yet
+			result += letter;
+			var reg = new RegExp(letter);
+			alpha = alpha.replace(reg,'')
+		}else{										//letter was picked, so take first letter before it in the alphabet that is still available
+			var index = base26.indexOf(letter),
+				alphaLength = alpha.length;
+			for(var j = 0; j < alphaLength; j++){
+				if(base26.indexOf(alpha.charAt(j)) < index){
+					result += alpha.charAt(j);
+					alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+					break
+				}else if(j == alphaLength - 1){
+					result += alpha.charAt(0);
+					alpha = alpha.slice(1)
+				}
+			}
+		}
+	}
+	return result + alpha
+//	if(result){base26B = result + alpha}else{base26B = base26};
+//	for(var i = 0; i < 26; i++){
+//		base26BArray[i] = base26.indexOf(base26B.charAt(i))
+//	}
+//	alphabet1.innerHTML = base26B.split('').join(' ');
+//	alphabet2.innerHTML = alphabet1.innerHTML;
+//	fillTabula()
+}
+
+//to remove accents etc.
+String.prototype.removeDiacritics = function() {
+    var diacritics = [
+        [/[\300-\306]/g, 'A'],
+        [/[\340-\346]/g, 'a'],
+        [/[\310-\313]/g, 'E'],
+        [/[\350-\353]/g, 'e'],
+        [/[\314-\317]/g, 'I'],
+        [/[\354-\357]/g, 'i'],
+        [/[\322-\330]/g, 'O'],
+        [/[\362-\370]/g, 'o'],
+        [/[\331-\334]/g, 'U'],
+        [/[\371-\374]/g, 'u'],
+        [/[\321]/g, 'N'],
+        [/[\361]/g, 'n'],
+        [/[\307]/g, 'C'],
+        [/[\347]/g, 'c'],
+		 [/[\337]/g, 'ss'],
+    ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) {
+        s = s.replace(diacritics[i][0], diacritics[i][1]);
+    }
+    return s;
+}
+
+function processKey(){
+	var partRegex = new RegExp('.{1,26}', "g"),
+		procKey = keyBox.value.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,''),
+		partsArray = procKey.match(partRegex),
+		rows = 0,
+		shortKey = '';
+
+	if(partsArray){rows = partsArray.length}else{partsArray = []};
+	if(rows < 2){shortKey = procKey}else{
+		var letters = new Array(rows),
+			actualRows;
+		for(var i = 0; i < 26; i++){
+			for(var j = 0; j < rows; j++){
+				letters[j] = partsArray[j].charAt(i)
+			}
+			letters = letters.filter(Boolean);
+			actualRows = letters.length;
+			var newLetterIndex = base26.indexOf(letters[0])
+			if(actualRows > 1){
+				for(var j = 1; j < actualRows; j++){
+					newLetterIndex = (26 - newLetterIndex + base26.indexOf(letters[j])) % 26
+				}
+			}
+			shortKey += base26.charAt(newLetterIndex)
+		}
+	}
+	
+	procKeyBox.innerHTML = partsArray.join('<br>') + '<br>--------------------------<br>' + shortKey;
+	alphabetBox.innerHTML = makeAlphabet(shortKey);
+}
+
+</script>
+</head>
+
+<body>
+<h1 align="center">Mixed Alphabet Maker</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This page generates a mixed alphabet suitable for use in a substitution cipher or a number of ciphers based on a Tabula Recta, by the author, starting from a user-supplied key phrase of arbitrary length. The process has these main steps:</p>
+<ol>
+  <li>Write the key phrase, minus spaces, diacritic marks, and punctuation, in a succession of rows of length 26 characters.</li>
+  <li>Combine the letters in each column of the table just formed, using a straight Tabula recta like the one below, this way: look up the first letter at the top, then go down until the second letter is found, then left or right until the third letter is found, and so on until all the letters are used, each time changing direction. Finally read the result at one the edges after another change of direction, and write it down. Examples: H + K = D; H + K + T = Q; H + K + T + D = O; H + K + T + T = D.</li>
+  <li>Convert the 26-letter (or shorter) string produced in step 2 into a mixed alphabet this way: 1, write down new letters in the order they appear; if a letter in the has already been written, write instead the first letter before it in the straight alphabet that is still available (wrap around to the end if needed); 2, then write the rest of the alphabet in reverse order.</li>
+</ol>
+<h3>Tabula Recta</h3>
+<div align="center">
+  <pre id="tabula">  A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  
+---------------------------------------------------
+A | A B C D E F G H I J K L M N O P Q R S T U V W X Y Z | A
+B | B C D E F G H I J K L M N O P Q R S T U V W X Y Z A | B
+C | C D E F G H I J K L M N O P Q R S T U V W X Y Z A B | C
+D | D E F G H I J K L M N O P Q R S T U V W X Y Z A B C | D
+E | E F G H I J K L M N O P Q R S T U V W X Y Z A B C D | E
+F | F G H I J K L M N O P Q R S T U V W X Y Z A B C D E | F
+G | G H I J K L M N O P Q R S T U V W X Y Z A B C D E F | G
+H | H I J K L M N O P Q R S T U V W X Y Z A B C D E F G | H
+I | I J K L M N O P Q R S T U V W X Y Z A B C D E F G H | I
+J | J K L M N O P Q R S T U V W X Y Z A B C D E F G H I | J
+K | K L M N O P Q R S T U V W X Y Z A B C D E F G H I J | K
+L | L M N O P Q R S T U V W X Y Z A B C D E F G H I J K | L
+M | M N O P Q R S T U V W X Y Z A B C D E F G H I J K L | M
+N | N O P Q R S T U V W X Y Z A B C D E F G H I J K L M | N
+O | O P Q R S T U V W X Y Z A B C D E F G H I J K L M N | O
+P | P Q R S T U V W X Y Z A B C D E F G H I J K L M N O | P
+Q | Q R S T U V W X Y Z A B C D E F G H I J K L M N O P | Q
+R | R S T U V W X Y Z A B C D E F G H I J K L M N O P Q | R
+S | S T U V W X Y Z A B C D E F G H I J K L M N O P Q R | S
+T | T U V W X Y Z A B C D E F G H I J K L M N O P Q R S | T
+U | U V W X Y Z A B C D E F G H I J K L M N O P Q R S T | U
+V | V W X Y Z A B C D E F G H I J K L M N O P Q R S T U | V
+W | W X Y Z A B C D E F G H I J K L M N O P Q R S T U V | W
+X | X Y Z A B C D E F G H I J K L M N O P Q R S T U V W | X
+Y | Y Z A B C D E F G H I J K L M N O P Q R S T U V W X | Y
+Z | Z A B C D E F G H I J K L M N O P Q R S T U V W X Y | Z
+---------------------------------------------------
+  A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  </pre>
+</div>
+<p>&nbsp;</p>
+<h2>Step 1. Enter key phrase</h2>
+<h3>Key Phrase</h3>
+<textarea name="keyBox" class="cssbox" id="keyBox" style="height:200px;font-size:larger;background-color:#E4F7FF;" title="Enter the key text taken from a book or whatever here" onKeyUp="processKey();"></textarea>
+<p>&nbsp;</p>
+<h2>Step 2. Reduce to alphabet length</h2>
+<p>Spaces, punctuation and diacritics are removed, and the text is written in lines containing 26 letters each. Then each column is combined to yield a single letter through &quot;serpentine&quot; operations on  the Tabula Recta. </p>
+<h3>Processed Key Phrase</h3>
+<div id="procKeyBox" class="cssbox" style="font-family:monospace;"><br>--------------------------</div>
+<p>&nbsp;</p>
+<h2>Step 3. Derive Mixed Alphabet</h2>
+<p>Extract new letters first, or the immediately prior available letter if repeated, complete the alphabet with remaining letters in reverse order:</p>
+<h3>Mixed Alphabet</h3>
+<div id="alphabetBox" class="cssbox" style="background-color:#DCF2D1;"></div>
+</body>
+</html>

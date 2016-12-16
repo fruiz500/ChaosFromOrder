@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="scrabble.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Scrabble encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM, autokey">
+<meta name="Description" content="Scrabble encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="tripletext-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+</style>
+
+<!--Now the JavaScript code-->
+<script>
+var	base26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+	base26B1 = base26,								//for scrambled alphabet
+	base26B2 = base26,
+	base26BArray1 = new Array(26),				//this contains only the indices, as an array
+	base26BArray2 = new Array(26);
+
+//makes the scrambled alphabet, starting from a string, takes number 1 or number 2
+function makeAlphabet(string,number){
+	string = string.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'');
+	var result = '', alpha = "ZYXWVUTSRQPONMLKJIHGFEDCBA",
+		stringLength = string.length;
+	for(var i = 0; i < stringLength; i++){
+		var letter = string.charAt(i);
+		if(result.indexOf(letter) == -1){			//letter not picked yet
+			result += letter;
+			var reg = new RegExp(letter);
+			alpha = alpha.replace(reg,'')
+		}else{										//letter was picked, so take first letter before it in the alphabet that is still available
+			var index = base26.indexOf(letter),
+				alphaLength = alpha.length;
+			for(var j = 0; j < alphaLength; j++){
+				if(base26.indexOf(alpha.charAt(j)) < index){
+					result += alpha.charAt(j);
+					alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+					break
+				}else if(j == alphaLength - 1){
+					result += alpha.charAt(0);
+					alpha = alpha.slice(1)
+				}
+			}
+		}
+	}
+	if(number == 1){
+		if(result){base26B1 = result + alpha}else{base26B1 = base26};
+		for(var i = 0; i < 26; i++){
+			base26BArray1[i] = base26.indexOf(base26B1.charAt(i))
+		}
+		alphaBox1.innerHTML = base26B1.split('').join('')
+	}else{
+		if(result){base26B2 = result}else{base26B2 = ''};
+		base26BArray2 = getPermutation(base26B2.split(''));
+		alphaBox2.innerHTML = base26B2.split('').join('')
+	}
+}
+
+//obtains the permutation array from an array of numbers or letters (no repeats)
+function getPermutation(inputArray){
+	if(inputArray.length < 2) return [0];
+	var	arrayLength = inputArray.length,
+		outputArray = new Array(arrayLength),
+		sortedArray = inputArray.slice(0);				//slice so the original is not modified
+	sortedArray.sort();
+	for(var i = 0; i < arrayLength; i++){
+		outputArray[i] = sortedArray.indexOf(inputArray[i])
+	}
+	return outputArray
+}
+
+//to remove accents etc.
+String.prototype.removeDiacritics = function() {
+    var diacritics = [
+        [/[\300-\306]/g, 'A'],
+        [/[\340-\346]/g, 'a'],
+        [/[\310-\313]/g, 'E'],
+        [/[\350-\353]/g, 'e'],
+        [/[\314-\317]/g, 'I'],
+        [/[\354-\357]/g, 'i'],
+        [/[\322-\330]/g, 'O'],
+        [/[\362-\370]/g, 'o'],
+        [/[\331-\334]/g, 'U'],
+        [/[\371-\374]/g, 'u'],
+        [/[\321]/g, 'N'],
+        [/[\361]/g, 'n'],
+        [/[\307]/g, 'C'],
+        [/[\347]/g, 'c'],
+		 [/[\337]/g, 'ss'],
+    ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) {
+        s = s.replace(diacritics[i][0], diacritics[i][1]);
+    }
+    return s;
+}
+
+//processes plaintext and displays in box
+function processPlain(){
+	if(plainBox.value.trim() == '') return;
+	var text = plainBox.value.replace(/[0-9]/g,function(match){return base26.charAt(match);}).trim();	//replace numbers with letters
+	text = text.removeDiacritics();																			//remove accents and make upper case
+	procPlainBox.innerHTML = text.toLowerCase().replace(/[^a-z]/g,'');										//final cleanup
+	processKeys();
+}
+
+//var seed, seedArray;
+//processes key texts and displays in box
+function processKeys(){
+	var key1 = keyBox1.value.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'').trim(),		//remove accents and make upper case
+		key2 = keyBox2.value.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'').trim();
+	if(key1 == '') key1 = base26;
+	makeAlphabet(key1,1);																				//make scrambled alphabets
+	if(key2 != ''){
+		makeAlphabet(key2,2)
+	}else{
+		makeAlphabet(key1,2)
+	}
+	makeCipher();
+}
+
+//calculates keystream from the key and the generated ciphertext
+function makeCipher(){
+	var text = procPlainBox.innerHTML.toUpperCase().trim();
+	if(encryptMode.checked && addNulls.checked){										//prepend nulls if so chosen
+		var nulls = '';
+		for(var i = 0; i < 20; i++) nulls += base26.charAt(Math.floor(Math.random()*26));
+		text = nulls + text
+	}
+	var	length = text.length,
+		textArray = new Array(length),
+		cipherArray = new Array(length);
+	if(!text) return;
+		
+	//now fill row 1 with numbers representing letters; this will be a lot faster than doing string operations
+	for(var i = 0; i < length; i++){
+		textArray[i] = base26.indexOf(text.charAt(i))
+	}
+	
+	//if decrypting, do the transposition now
+	if(decryptMode.checked){
+		textArray = reverseKeyTranspose(textArray,base26BArray2)
+	}
+	
+	var scrambledTextArray = new Array(length)
+	for(var i = 0; i < length; i++) scrambledTextArray[i] = base26.charAt(textArray[i]);
+	var scrambledText = scrambledTextArray.join('');
+	procCipherBox.innerText = scrambledText;
+	textArray = encryptDecrypt(textArray);	
+
+	for(var j = 0; j < length; j++) cipherArray[j] = base26.charAt(textArray[j]);
+	var cipherText = cipherArray[0] ? cipherArray.join('') : text;
+	preCipherBox.innerText = cipherText;
+	
+	//undo transpose if encrypting
+	if(encryptMode.checked){
+		textArray = keyTranspose(textArray,base26BArray2);
+		for(var j = 0; j < length; j++) cipherArray[j] = base26.charAt(textArray[j]);
+		cipherText = cipherArray.join('');
+	}
+	keyStreamQuality26(textArray);
+
+	if(decryptMode.checked && addNulls.checked) cipherText = cipherText.slice(20);
+	cipherBox.innerHTML = cipherText;
+	codeGroupBox.innerHTML = cipherText.match(/.{1,5}/g).join(' ')
+}
+
+//main encryption routine. Simply a substitution, with the cipher alphabet scrambled after each step
+function encryptDecrypt(array){
+	var length = array.length,
+		output = new Array(length),
+		plainAlpha = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25],
+		cipherAlpha = base26BArray1.slice(0),
+		cipherStart = parseInt(cipherStartBox.value),
+		cipherEnd = parseInt(cipherEndBox.value),
+		index,
+		dummy,
+		startIndex,
+		endIndex,
+		i,j;
+
+	for(i = 0; i < length; i++){
+		if(encryptMode.checked){
+			index = plainAlpha.indexOf(array[i]);
+			output[i] = cipherAlpha[index]
+		}else{
+			index = cipherAlpha.indexOf(array[i]);
+			output[i] = plainAlpha[index]
+		}
+
+		startIndex = (index + cipherStart) % 26;									//swap two letters
+		endIndex = (index + cipherEnd) % 26;
+		dummy = plainAlpha[startIndex];											//first on plaintext alphabet
+		plainAlpha[startIndex] = plainAlpha[endIndex];
+		plainAlpha[endIndex] = dummy;
+		dummy = cipherAlpha[startIndex];											//then on ciphertext alphabet
+		cipherAlpha[startIndex] = cipherAlpha[endIndex];
+		cipherAlpha[endIndex] = dummy;
+
+		if(forwardBox.checked){													//shift whole plaintext alphabet
+			dummy = plainAlpha[25];
+			for(j = 25; j > 0; j--) plainAlpha[j] = plainAlpha[j - 1];
+			plainAlpha[0] = dummy
+		}else{
+			dummy = plainAlpha[0];
+			for(j = 0; j < 25; j++) plainAlpha[j] = plainAlpha[j + 1];
+			plainAlpha[25] = dummy
+		}
+	}
+	return output
+}
+
+//key is an array containing a permutation, as in [0,1,2], [2,0,1], etc. String is an array
+function keyTranspose(inputArray,key){
+	var rowLength = key.length;
+	if(rowLength < 2) return inputArray;
+	var	length = inputArray.length,
+		lastRowLength = length % rowLength,
+		columnLength = Math.ceil(length / rowLength),
+		inverseKey = new Array(rowLength),
+		table = new Array(columnLength),
+		output = new Array(length);
+	if(lastRowLength == 0) lastRowLength = rowLength;
+	for(var i = 0; i < columnLength; i++) table[i] = new Array(rowLength);
+	for(var j = 0; j < rowLength; j++) inverseKey[j] = key.indexOf(j);
+	
+	//fill table by rows	
+	for(var k = 0; k < length; k++){
+		var i = Math.floor(k / rowLength),
+			j = k % rowLength;
+		table[i][j] = inputArray[k]
+	}
+	
+	//read table by columns according to key
+	var k = 0;
+	for(var j = 0; j < rowLength; j++){
+		var thisColumnLength = (inverseKey[j] >= lastRowLength) ? columnLength-1: columnLength;
+		for(var i = 0; i < thisColumnLength; i++){
+			output[k] = table[i][inverseKey[j]];
+			k++
+		}
+	}
+	return output
+}
+
+function reverseKeyTranspose(inputArray,key){
+	var	rowLength = key.length;
+	if(rowLength < 2) return inputArray;
+	var	length = inputArray.length,
+		lastRowLength = length % rowLength,
+		columnLength = Math.ceil(length / rowLength),
+		inverseKey = new Array(rowLength),
+		table = new Array(columnLength),
+		output = new Array(length);
+	if(lastRowLength == 0) lastRowLength = rowLength;
+	for(var i = 0; i < columnLength; i++) table[i] = new Array(rowLength);
+	for(var j = 0; j < rowLength; j++) inverseKey[j] = key.indexOf(j);
+		
+	//fill table by columns according to key		
+	var k = 0;
+	for(var j = 0; j < rowLength; j++){
+		var thisColumnLength = (inverseKey[j] >= lastRowLength) ? columnLength-1: columnLength;
+		for(var i = 0; i < thisColumnLength; i++){
+			table[i][inverseKey[j]] = inputArray[k];
+			k++
+		}
+	}
+	
+	//read table by rows
+	for(var k = 0; k < length; k++){
+		var i = Math.floor(k / rowLength),
+			j = k % rowLength;
+		output[k] = table[i][j]	
+	}
+	return output
+}
+
+//displays quality of the keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test
+function keyStreamQuality26(array){
+	frequencies(array,26);
+	var chiNumber = chiSquared(array,26),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(array,26),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(array,26),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(array,26),
+		runsResult = runsNumber.toString().slice(0,6);
+	var ICnumber = coincidenceIndex(array,26),
+		ICresult = ICnumber.toString().slice(0,6);
+	var	corResult = corrAtDistance(array,26,1).toString().slice(0,6);
+	if(chiNumber > 34.4) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 4.6) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+	if(ICnumber > 0.04 && ICnumber < 0.06){ICresult = '<span style="color:red;">' + ICresult + '</span>'}else if(ICnumber > 0.06){ICresult = '<span style="color:limegreen;">' + ICresult + '</span>'};
+
+	qualityMsg.innerHTML = "Tests applied to the letter output with number of characters: " + array.length + "<br>Chi-squared (less than 34.4 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 4.7) = " + entropyResult + "<br>Chars per run (should be close to 2.0) = " + runsResult + "<br>Index of coincidence (as low as 0.03846 for random, around 0.066 for English text) = " + ICresult + "<br>Dependence Chi-squared of consecutive letters (less than 671 is good) = " + corResult
+}
+
+var freqArray = [];				//used by a lot of the other functions, so might as well do the calculation just once
+//counts frequency for each digit in the given base. The input array contains numbers from 0 to base - 1
+function frequencies(array,base){
+	var length = array.length;
+	freqArray = new Array(base).fill(0);
+	for(var i = 0; i < length; i++) freqArray[array[i]]++
+}
+
+//chi-squared statistic of a array in a given base
+function chiSquared(array,base){
+	var	result = 0,
+		length = array.length;
+		expected = length / base,
+		operand = 0;
+	for(var i = 0; i < base; i++){
+		operand = freqArray[i] - expected;
+		result += (operand * operand) / expected
+	}
+	return result
+}
+
+//calculate Chi-squared of dependence for elements separated by a given distance. Minimum is 1
+function corrAtDistance(array,base,distance){
+	var	length = array.length,
+		highIndex = length - distance;
+		data = 0,
+		result = 0,
+		operand = 0,
+		expected = 0,
+		freqTable = new Array(base);
+	for(var i = 0; i < base; i++) freqTable[i] = new Array(base).fill(0);
+	for(var k = 0; k < highIndex; k++){			//fill the table with data
+		freqTable[array[k]][array[k + distance]]++
+	}
+	for(var i = 0; i < base; i++){					//each first character
+		for(var j = 0; j < base; j++){				//each second character
+			data = 0;
+			expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+			if(expected > 0){										//in case a letter does not appear at all
+				operand = freqTable[i][j] - expected;
+				result += (operand * operand) / expected
+			}
+		}
+	}
+	return result
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive digits that are expected to be random
+function durbinWatson(array,base){
+	var num = 0,
+		denom = 0,
+		length = array.length,
+		operand = 0,
+		subtrand = (base - 1) / 2;
+	for(var i = 1; i < length; i++){
+		operand = array[i] - array[i-1];
+		num += operand * operand;
+		operand = array[i] - subtrand;
+		denom += operand * operand
+	}
+	return denom == 0 ? -1 : num/denom
+}
+
+//computes the entropy of a array of digits, in bits per digit
+function shannonEntropy(array,base){
+	var length = array.length,
+		entropy = 0,
+		frequency;
+	for(var i = 0; i < base; i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of binary digits per run, to see how correlated consecutive digits are (2.0 for true random) It assumes an even base, so it won't work for odd
+function runs(array,base){
+	var count = 1,
+		length = array.length,
+		cutoff = base - 1;
+	for(var i = 1; i < length; i++) count += (array[i]*2 > cutoff) ^ (array[i-1]*2 > cutoff);
+	return length / count
+}
+
+//computes Friedman's index of coincidence (IC)
+function coincidenceIndex(array,base){
+	var	length = array.length,
+		result = 0;
+	for(var i = 0; i < base; i++){
+		result += freqArray[i]*(freqArray[i] - 1)
+	}
+	return result / (length * (length - 1))
+}
+</script>
+</head>
+
+<body>
+<h1 align="center">Scrabble encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This is a cipher based directly on John F. Byrne's Chaocipher from 1918, which was kept secret for many years and finally revealed in 2010. It simplifies Chaocipher so letter movement is minimized. Known plaintext attacks are prevented by optionally prepending random letters to the plaintext, or by applying a  transposition after the main encryption process. There are two keys for a total key space of size 26!^2, equivalent to 177 binary bits. The name is because it can be most easily implemented using Scrabble tiles.</p>
+<div align="center"></div>
+<h2>Step 1. Alphabet preparation</h2>
+<p>We begin by making scrambled alphabets out of the keys. This is why we input the keys before the plaintext.  The boxes are blue to indicate that they can be written on. Do this to make a scrambled alphabet: take each key and write the different letters of the alphabet in the order they appear in the key, if a letter has been used already, write instead the immediately preceding letter in the normal alphabet not yet chosen. If there are letters that did not appear in the key, write them now in reverse alphabetical order (key 1 only).</p>
+<p>It is OK to  use keys that have been used before, even for a message of identical length as a previous message. In this program, if you leave the key 2  box empty, key 1 will be used also. Write a single letter in the key 2 box to turn off transposition.</p>
+<h3>Key 1 (ciphertext)</h3>
+<textarea name="keyBox1" class="cssbox" id="keyBox1" style="font-size:larger;background-color:#E4F7FF;" title="Enter key 1" onKeyUp="processKeys();"></textarea>
+<h3>Key 2 (transposition)</h3>
+<textarea name="keyBox2" class="cssbox" id="keyBox2" style="font-size:larger;background-color:#E4F7FF;" title="Enter key 2, or leave blank to use key 1 again" onKeyUp="processKeys();">N</textarea>
+<p>So here are the initial mixed alphabets produced by processing the keys. If you are using Scrabble tiles, put the first alphabet above a ruler, and then right above it a straight alphabet. We will be looking up plaintext letters in the top alphabet, ciphertext letters in the bottom. The transposition alphabet will be used later:</p>
+<h3>Initial ciphertext alphabet</h3>
+<div id="alphaBox1" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;"></div>
+<p></p>
+<h3>Transposition alphabet (might not be full length)</h3>
+<div id="alphaBox2" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;"></div>
+<p>Here we tell the program which  letters relative to the one being encrypted are to be swapped. First (0 to 25, default 0):
+  <input type="text" name="cipherStartBox" id="cipherStartBox" style="background-color:#E4F7FF;width:30px;height:30px;font-size:large" value="0" title="Position relative to the ciphertext of the first letter to be swapped" onKeyUp="processPlain();"> 
+  and second
+(0 to 25, default 25):
+  <input type="text" name="cipherEndBox" id="cipherEndBox" style="background-color:#E4F7FF;width:30px;height:30px;font-size:large" value="25" title="Position relative to the ciphertext of the second letter to be swapped" onKeyUp="processPlain();"> 
+For best results, the difference between them should be an odd number except 13.</p>
+<p>And here whether the plaintext alphabet takes one step forward or backward after that:&nbsp;&nbsp;
+  <input type="radio" name="directionModes" id="forwardBox" onClick="processPlain();" title='shift the ciphertext alphabet one step forward'/>
+&nbsp; Forward&nbsp;&nbsp;
+<input type="radio" name="directionModes" id="backwardBox" onClick="processPlain();" title="shift the ciphertext alphabet one step backward" checked/>
+&nbsp; Backward</p>
+<p>Here we tell the program whether or not to prepend twenty random letters to the plaintext in order to prevent a known plaintext attack:</p>
+<p>&nbsp;&nbsp;
+  <input type="radio" name="nullModes" id="addNulls" onClick="processPlain();" title='prepend 20 nulls, delete them on decryption' checked/>
+  &nbsp; Add nulls&nbsp;&nbsp;
+  <input type="radio" name="nullModes" id="noNulls" onClick="processPlain();" title="do not add or remove nulls" />
+  &nbsp; No nulls</p>
+<p>Finally, since the processes for encryption and decryption are slightly different, we need to tell the program what we want to do:</p>
+<p>&nbsp;&nbsp;
+  <input type="radio" name="cryptModes" id="encryptMode" onClick="processPlain();" title='encrypt' checked/>
+  &nbsp; Encrypt&nbsp;&nbsp;
+  <input type="radio" name="cryptModes" id="decryptMode" onClick="processPlain();" title="decrypt" />
+  &nbsp; Decrypt</p>
+<p>&nbsp;</p>
+<h2>Step 2. Plaintext preparation</h2>
+<h3>Plaintext / Ciphertext</h3>
+  <textarea name="plainBox" class="cssbox" id="plainBox" style="background-color:#E4F7FF;" title="Enter your plaintext (or ciphertext, when decrypting) here" onKeyUp="processPlain();"></textarea>
+Which is converted to this, after spaces, punctuation and diacritics are removed, and everything is turned into lowercase:
+<h3>Processed Plaintext / Ciphertext</h3>
+<div id="procPlainBox" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;"></div>
+<p>If we are decrypting, the ciphertext is descrambled using the Transposition alphabet as key. There is no transposition when encrypting, but we may add as many as twenty random letters at the beginning, in order to defeat a known plaintext attack:</p>
+<div id="procCipherBox" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;"></div>
+<p>&nbsp;</p>
+<h2>Step 3. Encryption / Decryption</h2>
+<p>It is hard to show how the alphabets change after every letter encrypted or decrypted, so we'll only show the ciphertext obtained. Do the following to encrypt each plaintext letter:</p>
+<ol>
+  <li>Look it up on the plaintext alphabet (top), then read the letter below it on the ciphertext alphabet. This is the ciphertext letter, which you should write down.</li>
+  <li>Swap the groups of two letters (top and bottom) located at the positions written in the small blue boxes, relative to the letter you just wrote (0 is the same horizontal position, 1 the group after, 25 the group before). Whenever you reach the end continue counting from the beginning.</li>
+  <li>Shift the whole top alphabet (not the bottom) one space to the right and move its last letter to the first position if the &quot;Forward&quot; box is checked. Do the reverse if &quot;Backward&quot; is checked.</li>
+</ol>
+<p>The instructions for decryption are the same, except that you look up the ciphertext letter on the ciphertext alphabet, in order to obtain the corresponding plaintext letter. Then the alphabets are shuffled after each letter is decrypted exactly as described above. Here's the result of the operation:</p>
+<div id="preCipherBox" class="cssbox" onKeyUp="" onPaste="" style="font-family:monospace;font-size:large;"></div>
+<p></p>
+<p>&nbsp;</p>
+<h2>Step 4. Final transposition and result</h2>
+<p>When encrypting, we do a transposition as final step, using the Transposition alphabet as key. We begin with the result of the previous operation, which will be repeated if we are decrypting instead (transposition was done earlier). The ciphertext (plaintext when decrypting, possibly with the initial random letters removed) is the first box below. The lower box contains the same, but split into codegroups of five characters each. We also perform some statistical tests, which are displayed before the last box.
+</p>
+<h3>Ciphertext / Plaintext</h3>
+<div id="cipherBox" class="cssbox" style="background-color:#DCF2D1;"></div>
+<span id="qualityMsg">Information about output randomness will appear here</span>
+<h3>Formatted output</h3>
+<div id="codeGroupBox" class="cssbox" style="background-color:#DCF2D1;font-family:monospace;font-size:larger;"></div>
+</body>
+</html>

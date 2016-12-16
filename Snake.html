@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="snake.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Snake encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM, running-key">
+<meta name="Description" content="Snake encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="tripletext-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 22px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+</style>
+
+<!--Now the JavaScript code-->
+<script>
+var	base26 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+	base26B = base26,								//for scrambled alphabet
+	base26BArray = new Array(26);				//this contains only the indices, as an array
+
+//makes the scrambled alphabet, starting from a string
+function makeAlphabet(string){
+	string = string.removeDiacritics().toUpperCase().replace(/[^A-Z]/g,'');
+	var result = '', alpha = "ZYXWVUTSRQPONMLKJIHGFEDCBA",
+		stringLength = string.length;
+	for(var i = 0; i < stringLength; i++){
+		var letter = string.charAt(i);
+		if(result.indexOf(letter) == -1){			//letter not picked yet
+			result += letter;
+			var reg = new RegExp(letter);
+			alpha = alpha.replace(reg,'')
+		}else{										//letter was picked, so take first letter before it in the alphabet that is still available
+			var index = base26.indexOf(letter),
+				alphaLength = alpha.length;
+			for(var j = 0; j < alphaLength; j++){
+				if(base26.indexOf(alpha.charAt(j)) < index){
+					result += alpha.charAt(j);
+					alpha = alpha.slice(0,j) + alpha.slice(j+1,alphaLength);
+					break
+				}else if(j == alphaLength - 1){
+					result += alpha.charAt(0);
+					alpha = alpha.slice(1)
+				}
+			}
+		}
+	}
+	if(result){base26B = result + alpha}else{base26B = base26};
+	for(var i = 0; i < 26; i++){
+		base26BArray[i] = base26.indexOf(base26B.charAt(i))
+	}
+	alphabet1.innerHTML = base26B.split('').join(' ');
+	alphabet2.innerHTML = alphabet1.innerHTML;
+	fillTabula()
+}
+
+//fills the Tabula Recta according to the scrambled alphabet
+function fillTabula(){
+	var straightTabula = "---------------------------------------------------\na | A B C D E F G H I J K L M N O P Q R S T U V W X Y Z | a\nb | B C D E F G H I J K L M N O P Q R S T U V W X Y Z A | b\nc | C D E F G H I J K L M N O P Q R S T U V W X Y Z A B | c\nd | D E F G H I J K L M N O P Q R S T U V W X Y Z A B C | d\ne | E F G H I J K L M N O P Q R S T U V W X Y Z A B C D | e\nf | F G H I J K L M N O P Q R S T U V W X Y Z A B C D E | f\ng | G H I J K L M N O P Q R S T U V W X Y Z A B C D E F | g\nh | H I J K L M N O P Q R S T U V W X Y Z A B C D E F G | h\ni | I J K L M N O P Q R S T U V W X Y Z A B C D E F G H | i\nj | J K L M N O P Q R S T U V W X Y Z A B C D E F G H I | j\nk | K L M N O P Q R S T U V W X Y Z A B C D E F G H I J | k\nl | L M N O P Q R S T U V W X Y Z A B C D E F G H I J K | l\nm | M N O P Q R S T U V W X Y Z A B C D E F G H I J K L | m\nn | N O P Q R S T U V W X Y Z A B C D E F G H I J K L M | n\no | O P Q R S T U V W X Y Z A B C D E F G H I J K L M N | o\np | P Q R S T U V W X Y Z A B C D E F G H I J K L M N O | p\nq | Q R S T U V W X Y Z A B C D E F G H I J K L M N O P | q\nr | R S T U V W X Y Z A B C D E F G H I J K L M N O P Q | r\ns | S T U V W X Y Z A B C D E F G H I J K L M N O P Q R | s\nt | T U V W X Y Z A B C D E F G H I J K L M N O P Q R S | t\nu | U V W X Y Z A B C D E F G H I J K L M N O P Q R S T | u\nv | V W X Y Z A B C D E F G H I J K L M N O P Q R S T U | v\nw | W X Y Z A B C D E F G H I J K L M N O P Q R S T U V | w\nx | X Y Z A B C D E F G H I J K L M N O P Q R S T U V W | x\ny | Y Z A B C D E F G H I J K L M N O P Q R S T U V W X | y\nz | Z A B C D E F G H I J K L M N O P Q R S T U V W X Y | z\n---------------------------------------------------";
+	for(var i=0; i < 26; i++){
+		var reg = new RegExp(base26[i].toLowerCase(),"g");
+		straightTabula = straightTabula.replace(reg,base26B.charAt(i))
+	}
+	tabula.innerText = straightTabula
+}
+
+//to remove accents etc.
+String.prototype.removeDiacritics = function() {
+    var diacritics = [
+        [/[\300-\306]/g, 'A'],
+        [/[\340-\346]/g, 'a'],
+        [/[\310-\313]/g, 'E'],
+        [/[\350-\353]/g, 'e'],
+        [/[\314-\317]/g, 'I'],
+        [/[\354-\357]/g, 'i'],
+        [/[\322-\330]/g, 'O'],
+        [/[\362-\370]/g, 'o'],
+        [/[\331-\334]/g, 'U'],
+        [/[\371-\374]/g, 'u'],
+        [/[\321]/g, 'N'],
+        [/[\361]/g, 'n'],
+        [/[\307]/g, 'C'],
+        [/[\347]/g, 'c'],
+		 [/[\337]/g, 'ss'],
+    ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) {
+        s = s.replace(diacritics[i][0], diacritics[i][1]);
+    }
+    return s;
+}
+
+var procPlain, length;
+//processes plaintext and displays in box
+function processPlain(){
+	if(plainBox.value.trim() == '') return;
+	var text = plainBox.value.replace(/[0-9]/g,function(match){return base26.charAt(match);}).trim();	//replace numbers with letters
+	text = text.removeDiacritics();																	//remove accents and make upper case
+	procPlain = text.toLowerCase().replace(/[^a-z]/g,'');											//final cleanup
+	procPlainBox.innerHTML = procPlain;
+	length = procPlain.length;
+	if(keyBox.value == '') return;
+	processKey();
+}
+
+var keyStream, partsArray;
+//processes key text and displays in box
+function processKey(){
+	if(keyBox.value.trim() == '') return;
+	var text = keyBox.value.removeDiacritics().toUpperCase().trim(),								//remove accents and make upper case
+		firstSentence = text.replace(/['"]/g,'').split(/\./)[0];									//first sentence		
+	makeAlphabet(firstSentence);																		//make scrambled alphabet
+	if(procPlain == '') return;															//stop if there is no plaintext
+
+	var	rowsNum = rowsBox.value,
+		keyLength = rowsNum * length;
+	text = text.replace(/[^A-Z]/g,'');
+	if(text.length >= keyLength){
+		text = text.slice(0,keyLength);
+		lengthWarning.innerHTML = '<span style="color:green;">The key text is long enough</span>'
+	}else{
+		while(text.length < keyLength){text += text};													//extend key text if too short
+		text = text.slice(0,keyLength);
+		lengthWarning.innerHTML = '<span style="color:red;">The key text is too short and has been repeated</span>'
+	}
+
+	var partRegex = new RegExp('.{1,' + length + '}', "g");
+	partsArray = (procPlain.toUpperCase() + text).match(partRegex);
+	procKeyBox.innerHTML = partsArray.join('<br>');
+	makeKeyStream();
+	makeCipher();
+}
+
+//this function makes the keystream step by step, and combines it with the plaintext
+function makeKeyStream(){
+	var	rowsNum = partsArray.length,
+		result = new Array(length),
+		prevLetter = 0,
+		nextLetter = 0;
+	keyStream = new Array(length);
+
+	for(var i = 0; i < length; i++){
+		prevLetter = base26.indexOf(partsArray[1][i]);
+		if(rowsNum > 2){
+			for(var j = 1; j < rowsNum; j++){
+				nextLetter = (26 + base26.indexOf(partsArray[j][i]) - prevLetter) % 26;
+				prevLetter = nextLetter;
+			}
+			result[i] = nextLetter;
+		}else{
+			result[i] = prevLetter;
+		}
+	}
+	keyStream = result;
+	keyStreamQuality26(keyStream);										//run tests
+}
+
+//to make the ciphertext, or get the plaintext
+function makeCipher(){
+	var	result = new Array(length);
+	for(var i = 0; i < length; i++){
+		result[i] = base26B.charAt(((26 + keyStream[i] - base26B.indexOf(partsArray[0][i])) % 26))
+	}
+	var output = result.join('');
+	cipherBox.innerHTML = output;
+	codeGroupBox.innerHTML = output.match(/.{1,5}/g).join(' ');
+}
+
+
+//makes sure the number of rows is correctly formatted and initiates keystream generation
+function enterRows(){
+	var rowsNum = rowsBox.value.toString().replace(/[^1-9]/g,'') | '';
+	while(rowsNum.toString().length > 1){rowsNum = rowsNum.toString().slice(1)};
+	if(rowsNum < 1) rowsNum = 1;
+	if(!(rowsNum % 2)) rowsNum++;																//force odd number
+	rowsBox.value = rowsNum;
+	if(!procKeyBox.innerHTML.trim() || !procPlainBox.innerHTML.trim()) return;			//stop if there is no key text or plaintext
+	processKey();
+}
+
+//displays quality of the keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test
+function keyStreamQuality26(array){
+	frequencies(array,26);
+	var chiNumber = chiSquared(array,26),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(array,26),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(array,26),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(array,26),
+		runsResult = runsNumber.toString().slice(0,6);
+	var ICnumber = coincidenceIndex(array,26),
+		ICresult = ICnumber.toString().slice(0,6);
+	var	corResult = corrAtDistance(array,26,1).toString().slice(0,6);
+	if(chiNumber > 34.4) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 4.6) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+	if(ICnumber > 0.04 && ICnumber < 0.06){ICresult = '<span style="color:red;">' + ICresult + '</span>'}else if(ICnumber > 0.06){ICresult = '<span style="color:limegreen;">' + ICresult + '</span>'};
+
+	qualityMsg.innerHTML = "Tests applied to the keystream with number of characters: " + array.length + "<br>Chi-squared (less than 34.4 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 4.7) = " + entropyResult + "<br>Chars per run (should be close to 2.0) = " + runsResult + "<br>Index of coincidence (as low as 0.03846 for random, around 0.066 for English text) = " + ICresult;
+	qualityMsg.innerHTML += "<br>Correlation Chi-squared of contiguous letters (should be below 671) = " + corResult;
+}
+
+var freqArray = [];				//used by a lot of the other functions, so might as well do the calculation just once
+//counts frequency for each digit in the given base. The input array contains numbers from 0 to base - 1
+function frequencies(array,base){
+	var length = array.length;
+	freqArray = new Array(base).fill(0);
+	for(var i = 0; i < length; i++) freqArray[array[i]]++
+}
+
+//chi-squared statistic of a array in a given base
+function chiSquared(array,base){
+	var	result = 0,
+		length = array.length;
+		expected = length / base,
+		operand = 0;
+	for(var i = 0; i < base; i++){
+		operand = freqArray[i] - expected;
+		result += (operand * operand) / expected
+	}
+	return result
+}
+
+//two-digit correlations at different distance, for a given base. Slow version. See below for fast one
+function corrArray(array,base,maxShift){
+	var	length = array.length,
+		output = new Array(maxShift),
+		data,result,operand,expected;	
+	for(var l = 1; l <= maxShift; l++){			//for each shift, do a 2-character chi-squared
+		result = 0;
+		for(var i = 0; i < base; i++){					//each first character
+			for(var j = 0; j < base; j++){				//each second character
+				data = 0;
+				expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+				if(expected > 0){										//in case a letter does not appear at all
+					for(var k = 0; k < length-l; k++){
+						if((array[k] == i) && (array[k+l] == j)) data++
+					}
+					operand = data - expected;
+					result += (operand * operand) / expected
+				}
+			}
+		}
+		output[l-1] = result
+	}
+	return output
+}
+
+//as above but for a given distance. Minimum is 1
+function corrAtDistance(array,base,distance){
+	var	length = array.length,
+		highIndex = length - distance;
+		data = 0,
+		result = 0,
+		operand = 0,
+		expected = 0,
+		freqTable = new Array(base);
+	for(var i = 0; i < base; i++) freqTable[i] = new Array(base).fill(0);
+	for(var k = 0; k < highIndex; k++){			//fill the table with data
+		freqTable[array[k]][array[k + distance]]++
+	}
+	for(var i = 0; i < base; i++){					//each first character
+		for(var j = 0; j < base; j++){				//each second character
+			data = 0;
+			expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+			if(expected > 0){										//in case a letter does not appear at all
+				operand = freqTable[i][j] - expected;
+				result += (operand * operand) / expected
+			}
+		}
+	}
+	return result
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive digits that are expected to be random
+function durbinWatson(array,base){
+	var num = 0,
+		denom = 0,
+		length = array.length,
+		operand = 0,
+		subtrand = (base - 1) / 2;
+	for(var i = 1; i < length; i++){
+		operand = array[i] - array[i-1];
+		num += operand * operand;
+		operand = array[i] - subtrand;
+		denom += operand * operand
+	}
+	return denom == 0 ? -1 : num/denom
+}
+
+//computes the entropy of a array of digits, in bits per digit
+function shannonEntropy(array,base){
+	var length = array.length,
+		entropy = 0,
+		frequency;
+	for(var i = 0; i < base; i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of binary digits per run, to see how correlated consecutive digits are (2.0 for true random) It assumes an even base, so it won't work for odd
+function runs(array,base){
+	var count = 1,
+		length = array.length,
+		cutoff = base - 1;
+	for(var i = 1; i < length; i++) count += (array[i]*2 > cutoff) ^ (array[i-1]*2 > cutoff);
+	return length / count
+}
+
+//computes Friedman's index of coincidence (IC)
+function coincidenceIndex(array,base){
+	var	length = array.length,
+		result = 0;
+	for(var i = 0; i < base; i++){
+		result += freqArray[i]*(freqArray[i] - 1)
+	}
+	return result / (length * (length - 1))
+}
+</script>
+</head>
+
+<body>
+<h1 align="center">Snake encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This page simplifies the paper-and-pencil <a href="http://prgomez.com/files/tripletext.html" target="_blank">TripleText </a>cipher by F. Ruiz so the Tabula Recta is used more efficiently. All steps can be performed by hand without excessive effort.</p>
+<p>We will use a piece of key text typically <strong>three times</strong> the length of the plaintext (after spaces and punctuation are removed) in order to generate a &quot;one-time pad&quot; of sorts by concentrating the entropy inherent in the key text to match that of a perfectly random text. The key difference between this cipher and the classic <a href="https://en.wikipedia.org/wiki/Running_key_cipher" target="_blank">running key cipher</a> is that the latter uses a piece of key text of the same length as the plaintext, which is less than perfectly random and can be attacked by making guesses from a dictionary. As dictionary words, or parts thereof, are obtained when other dictionary words are subtracted from the ciphertext (at different positions in the ciphertext), then both the plaintext and the key text are gradually recovered at the same time. This is not possible with this cipher.</p>
+<p>Theoretical unbreakability is achieved when the keystream used to encipher the plaintext has the same entropy as a random string of the same length, according to Shannon's  <a href="http://www.pro-technix.com/information/crypto/pages/vernam_base.html" target= "_blank">criterion for perfect secrecy</a>. Since there are 26 possible letters, the entropy of a perfectly random string or letters is log(26)/log(2) = 4.70044 bits/letter. Since English text, <a href="https://ia802602.us.archive.org/23/items/bstj30-1-50/bstj30-1-50.pdf" target="_blank">according to Shannon</a>, has an average entropy of 1.58 bits per character (spaces are included, so the entropy per letter is a little higher), a piece of text of length 4.70044/1.58 = 2.975 times the length of a given random string contains the same entropy. If the text is three times as long as the plaintext, therefore, its entropy can match that of a random string of plaintext length.</p>
+<p>The process is identical for encryption and decryption. After the plaintext or ciphertext is processed —spaces and punctuation are stripped, and all letters are converted to capitals; accented letters are replaced by their non-accented versions; numbers in plaintext are converted to letters as in 0=A,1=B,...9=J, but are not converted back— a piece of equally processed key text three times (or another odd number) as long as the processed plaintext or ciphertext is selected, split into parts of equal length, and written below the plaintext as three additional lines. Then each four-letter column in the resulting table is processed using the Tabula Recta below, this way: find the first letter at the top and go down until the second letter is found, then left or right following that row until the third letter is found, then up or down on that column until the fourth letter is found, and then left or right to read off the result at the edge columns. Alternatively, you can start on the side rather than the top, switching direction every time a new letter is found, and read the result at the top.</p>
+<p>If a key-derived alphabet is used, rather than the straight alphabet, this operation also involves a substitution on the plaintext. Using an alphabet derived from the key text makes the final ciphertext non-malleable.</p>
+<h3>Tabula Recta</h3>
+<div align="center">
+  <pre id="alphabet1">
+  A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  </pre>
+  <pre id="tabula">---------------------------------------------------
+A | A B C D E F G H I J K L M N O P Q R S T U V W X Y Z | A
+B | B C D E F G H I J K L M N O P Q R S T U V W X Y Z A | B
+C | C D E F G H I J K L M N O P Q R S T U V W X Y Z A B | C
+D | D E F G H I J K L M N O P Q R S T U V W X Y Z A B C | D
+E | E F G H I J K L M N O P Q R S T U V W X Y Z A B C D | E
+F | F G H I J K L M N O P Q R S T U V W X Y Z A B C D E | F
+G | G H I J K L M N O P Q R S T U V W X Y Z A B C D E F | G
+H | H I J K L M N O P Q R S T U V W X Y Z A B C D E F G | H
+I | I J K L M N O P Q R S T U V W X Y Z A B C D E F G H | I
+J | J K L M N O P Q R S T U V W X Y Z A B C D E F G H I | J
+K | K L M N O P Q R S T U V W X Y Z A B C D E F G H I J | K
+L | L M N O P Q R S T U V W X Y Z A B C D E F G H I J K | L
+M | M N O P Q R S T U V W X Y Z A B C D E F G H I J K L | M
+N | N O P Q R S T U V W X Y Z A B C D E F G H I J K L M | N
+O | O P Q R S T U V W X Y Z A B C D E F G H I J K L M N | O
+P | P Q R S T U V W X Y Z A B C D E F G H I J K L M N O | P
+Q | Q R S T U V W X Y Z A B C D E F G H I J K L M N O P | Q
+R | R S T U V W X Y Z A B C D E F G H I J K L M N O P Q | R
+S | S T U V W X Y Z A B C D E F G H I J K L M N O P Q R | S
+T | T U V W X Y Z A B C D E F G H I J K L M N O P Q R S | T
+U | U V W X Y Z A B C D E F G H I J K L M N O P Q R S T | U
+V | V W X Y Z A B C D E F G H I J K L M N O P Q R S T U | V
+W | W X Y Z A B C D E F G H I J K L M N O P Q R S T U V | W
+X | X Y Z A B C D E F G H I J K L M N O P Q R S T U V W | X
+Y | Y Z A B C D E F G H I J K L M N O P Q R S T U V W X | Y
+Z | Z A B C D E F G H I J K L M N O P Q R S T U V W X Y | Z
+---------------------------------------------------</pre>
+  <pre id="alphabet2">
+  A B C D E F G H I J K L M N O P Q R S T U V W X Y Z  </pre>
+</div>
+<p>We are going to perform a special kind of addition (actually, a subtraction followed by a change of sign) using this table. To &quot;add&quot; two letters: find the first letter on the left or right side and follow that row until you find the second letter, then go up that column to read the result at the top row or you find the lext letter to &quot;added&quot;.  Examples with straight alphabet: R + H = Q, E + W + F = N, Z + A + J + X = P.</p>
+<p>&nbsp;</p>
+<h2>Step 1. Tabula preparation</h2>
+<p>We begin by making a scrambled alphabet out of the key text, which is placed at the top of the Tabula Recta, and then repeated in the body itself. This is why we input the key text before the plain text.  The box is blue to indicate that it can be written on. Do this to make a scrambled alphabet: 1, take the first sentence in the key text (up to the first period) and write down new letters in the order they appear; if a letter in the key text has already been written, write instead the first letter before it in the alphabet that is still available (wrap around to the end if needed); 2, then write the rest of the alphabet in reverse order. Then take the same scrambled alphabet and write it on the leftmost column.</p>
+<p>When a plaintext is written, the key text is processed in the same way as the plaintext (capitals rather than lowercase). If it is too short, it will be repeated and a warning will appear below the key text.  This key text will be used to encrypt the plaintext (or decrypt the ciphertext), and then <em>it will never be used again</em>.</p>
+<h3>Key Text</h3>
+<textarea name="keyBox" class="cssbox" id="keyBox" style="height:200px;font-size:larger;background-color:#E4F7FF;" title="Enter the key text taken from a book or whatever here" onKeyUp="processKey();"></textarea>
+<span id="lengthWarning">This is where the warning will appear</span>
+<p>Let us also select whether the  alphabet that forms the basis of the Tabula Recta will be scrambled according to the key text, or the straight alphabet will be used:</p>
+<p>
+   &nbsp;&nbsp;<input type="radio" name="encodingmodes" id="keyBasedMode" onClick="processKey();" title="use a top Tabula Recta alphabet based on the key text" checked/>
+  &nbsp; Key text-derived alphabet&nbsp;&nbsp;
+  <input type="radio" name="encodingmodes" id="defaultMode"  onClick="processKey();" title='use the straight alphabet'/>
+  &nbsp; Straight alphabet</p>
+<p>&nbsp;</p>
+<h2>Step 2. Plaintext preparation</h2>
+<p>Now the message to be encrypted.</p>
+<h3>Plaintext / Ciphertext</h3>
+<textarea name="plainBox" class="cssbox" id="plainBox" style="font-size:larger;background-color:#E4F7FF;" title="Enter your plaintext (or ciphertext, when decrypting) here" onKeyUp="processPlain();"></textarea>
+Which is converted to this, after spaces, punctuation and diacritics are removed, and everything is turned into lowercase:
+<h3>Processed Plaintext / Ciphertext</h3>
+<div id="procPlainBox" class="cssbox" style="font-family:monospace;"></div>
+<p>&nbsp;</p>
+<h2>Step 3. Encryption / Decryption</h2>
+<p>The next step is to generate the ciphertext.  In this version, we can enter in the box below a variable multiplier for the key text length, but it must be an odd number. Typically, 3 times the plaintext length is enough.</p>
+<h3>Key Text length factor</h3>
+<input type="text" id="rowsBox" onKeyUp="enterRows();" style="font-size:larger;background-color:#E4F7FF;width:30px;" title="shift here" value="3">
+</input>
+Allowed values are 1, 3, 5, 7, and 9. This is how many times the key text is longer than the plaintext.
+<p>Now we  take a piece of the key text equal to that many times the length of the processed plaintext and place it underneath the plaintext, forming as many extra rows, resulting in this:</p>
+<h3>Plaintext/Ciphertext plus Processed Key Text</h3>
+<div id="procKeyBox" class="cssbox" style="font-family:monospace;"></div>
+<p>And then we &quot;add&quot; the letters in each column using the Tabula Recta, as described above (first to second, then the result to third, and so on) in order to obtain the ciphertext (or plaintext), shown below.</p>
+<p><span id="qualityMsg">Information about ciphertext randomness will appear here</span></p>
+<p>&nbsp;</p>
+<h2>Step 4. Encrypted Ciphertext / Decrypted Plaintext</h2>
+<p>The lower box contains the same, but split into codegroups of five characters each.</p>
+<h3>Ciphertext / Plaintext</h3>
+<div id="cipherBox" class="cssbox" style="background-color:#DCF2D1;"></div>
+<h3>Formatted output</h3>
+<div id="codeGroupBox" class="cssbox" style="background-color:#DCF2D1;font-family:monospace;font-size:larger;"></div>
+</body>
+</html>

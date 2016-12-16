@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="filepad.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>FilePad encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM, running-key">
+<meta name="Description" content="FilePad encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="tripletext-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 18px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: medium;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+.custom-file-input {
+	color: #ffffff;
+}
+ .custom-file-input::-webkit-file-upload-button {
+ visibility: hidden;
+}
+.custom-file-input::before {
+	content: 'Select a file';
+	display: inline-block;
+	-webkit-border-radius: 10px;
+	-moz-border-radius: 10px;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 18px;
+	padding: 12px;
+	border: 0px;
+	outline: none;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	cursor: pointer;
+	text-decoration: none;
+	color: #666666;
+	background: #e6e6e6;
+}
+.custom-file-input:hover::before {
+	background: #c4c4c4;
+}
+.custom-file-input:active::before {
+	background: #c4c4c4;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+.blink {
+	-webkit-animation: blink .75s linear infinite;
+	-moz-animation: blink .75s linear infinite;
+	-ms-animation: blink .75s linear infinite;
+	-o-animation: blink .75s linear infinite;
+	animation: blink .75s linear infinite;
+}
+ @-webkit-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-moz-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-ms-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @-o-keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+ @keyframes blink {
+ 0% {
+opacity: 1;
+}
+ 50% {
+opacity: 1;
+}
+ 50.01% {
+opacity: 0;
+}
+ 100% {
+opacity: 0;
+}
+}
+</style>
+
+<!--Now the JavaScript code-->
+<script>
+var base2 = '01',
+	base64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+//loads the key file into its box
+function loadKeyFile(){
+	var fileToLoad = keyFile.files[0],
+		fileReader = new FileReader();
+	fileReader.onload = function(fileLoadedEvent){
+		var fileName = fileToLoad.name;
+		var URLFromFileLoaded = fileLoadedEvent.target.result;
+			keyBox.innerHTML = '<a id="keyFileLink" download="' + fileName + '" href="' + URLFromFileLoaded + '">' + fileName + '</a>'
+	};
+	fileReader.readAsDataURL(fileToLoad, "UTF-8");
+}
+
+//loads the plain file into its box
+function loadPlainFile(){
+	var fileToLoad = plainFile.files[0],
+		fileReader = new FileReader();
+	fileReader.onload = function(fileLoadedEvent){
+		var fileName = fileToLoad.name;
+		var URLFromFileLoaded = fileLoadedEvent.target.result;
+			plainBox.innerHTML = '<a id="plainFileLink" download="' + fileName + '" href="' + URLFromFileLoaded + '">' + fileName + '</a>'
+	};
+	fileReader.readAsDataURL(fileToLoad, "UTF-8");
+}
+
+//get binary string from loaded file. noDupes is a Boolean flag
+function fileToBin(fileLink,noDupes){
+	if(noDupes){
+		return base64toBin(removeRepeats(fileLink.href.split(',')[1].replace(/=+/,'')))			//remove duplicated characters
+	}else{
+		return base64toBin(fileLink.href.split(',')[1].replace(/=+/,''))							//no additional compression
+	}
+}
+
+//make file from base64 string, returns a string that can be placed in another element
+function base64ToFile(name,base64String,extension){
+	if(name.match('.filepad')){
+		name = name.replace(/.filepad/,'')
+	}else if(name.match('.rnd')){
+		name = name.replace(/.rnd/,'')
+	}else if(extension == 'filepad'){
+		name += '.filepad'
+	}else if(extension == 'rnd'){
+		name += '.rnd'
+	}
+	return '<a download="' + name + '" href="data:;base64,' + base64String + '"><b>' + name + '</a>'
+}
+
+//this just removes consecutive repeats
+function removeRepeats(string){
+	return string.replace(/(.)\1{1,}/g, '$1')
+}
+
+//columnar transposition of a string, with a given period
+function transpose(string,period){
+	var	length = string.length,
+		output = [''];
+			
+	for(var i = 0; i < length; i++){
+		var block = i % period;
+		if (output[block]){output[block] += string.charAt(i)}else{output[block] = string.charAt(i)}
+	}
+	return output.join('')
+}
+
+//same, with the period optimized
+function squareTranspose(string){
+	var period = Math.ceil(Math.sqrt(string.length)),
+		length = string.length,
+		output = [''];
+			
+	for(var i = 0; i < length; i++){
+		var block = i % period;
+		if (output[block]){output[block] += string.charAt(i)}else{output[block] = string.charAt(i)}
+	}
+	return output.join('')
+}
+
+//Von Neumann extractor from a string made of 1 and 0 characters
+function binNeumann(binString){
+	var	length = binString.length,
+		output = new Array(Math.floor(length/2));
+	for(var i = 0; i < length; i += 2){
+		var a = binString.charAt(i+1);
+		if(a) output.push(binString.charAt(i) ^ a ? a : '')
+	}
+	return output.filter(Boolean).join('')		//remove empty elements
+}
+
+//same as above but not joining till the end. Final string is one less than double the original
+function binDouble(binString){
+	var length = binString.length,
+		output = binString.split('');
+	for(var i = 0; i < (length - 1) * 2; i += 2) output[length + i/2] = output[i];
+	return output.join('')
+}
+
+//does only one row of binary LFG, can be repeated
+function binLFG(binString){
+	var length = binString.length,
+		output = new Array(length);
+	output[0] = binString.charAt(length-1);
+	for(var i = 0; i < length - 1; i++){
+		output[i+1] = (output[i] == binString.charAt(i) ? '0' : '1')
+	}
+	return output.join('')
+}
+
+//to perform a XOR of unequal length binary strings, the first one being longer
+function stringXor(keystreamBin, plainBin){
+	var length = plainBin.length,
+		output = new Array(length);
+	if(keystreamBin.length < length){
+		keyMsg = '<span style="color:red;">The safety factor is too small</span>';
+		return
+	}
+	for(var i = 0; i < length; i++){
+		output[i] = (keystreamBin.charAt(i) == plainBin.charAt(i) ? '0' : '1')
+	}
+	return output.join('')
+}
+
+//converts base64 into binary string
+function base64toBin(string){	
+	var	length = string.length,
+		number,
+		output = new Array(length);
+	for(var i = 0; i < length; i++){
+		number = base64.indexOf(string.charAt(i));
+		if(number == -1) return 'not base64';
+		var bin = number.toString(2);
+		while(bin.length < 6) bin = '0' + bin;
+		output[i] = bin
+	}
+	return output.join('')
+}
+
+//converts binary string into base64
+function binToBase64(binString){	
+	while(binString.length % 6) binString = '0' + binString;
+	var length = binString.length / 6,
+		output = new Array(length),
+		number;
+	for(var i = 0; i < length; i++){
+		number = parseInt(binString.slice(6*i,6*(i+1)),2);		//convert to decimal first
+		if(number == -1) return 'not binary';
+		output[i] = base64.charAt(number)
+	}
+	return output.join('')
+}
+
+//to start processing, with a blinking banner
+function startProcess(){
+	execMsg.innerHTML = '<span class="blink" style="color:blue;">PROCESSING</span>';
+	setTimeout(function(){
+		doComputation();
+	},20)
+}
+
+//clear Done message when clicking any button
+function clearDone(){
+	execMsg.innerHTML = ''
+}
+
+var safetyFactor = 1.5				//for when the von Neumann extractor is used
+
+//this is the function that puts it all together. Called by the Execute button
+function doComputation(){
+	if(!keyFile || !keyBox.innerHTML.match('data:')){
+		keyMsg = '<span style="color:red;">Must load a key file first</span>';
+		return
+	}
+	var cutPercent = Number(cutBox.value);
+	if(cutPercent == 'NaN' || cutPercent < 0 || cutPercent > 100){
+		keyMsg = '<span style="color:red;">The cut must be between 0 and 100</span>';
+		return
+	}
+	
+	var	keyBin = fileToBin(keyFileLink,removeReps.checked),
+		keyLength = keyBin.length;
+		
+	var cutIndex = Math.floor(keyLength * cutPercent / 100);			//cut operation
+	keyBin = keyBin.slice(cutIndex,keyLength) + keyBin.slice(0,cutIndex);
+	
+	if(plainFile && plainBox.innerHTML.match('data:')){
+		var plainBin = fileToBin(plainFileLink,false),
+			plainLength = plainBin.length;
+		
+		//now we calculate the minimum length that the key file must have in order to encrypt the plain file	
+		if(doubleInflation.checked){
+			var factor = 4,
+				adder = 3
+		}else if(singleInflation.checked){
+			var factor = 2,
+				adder = 1
+		}else{
+			var factor = 1,
+				adder = 0
+		}
+		var keyLengthMin = Math.ceil((plainLength + adder) / factor);
+		
+		if(applyNeumann.checked) keyLengthMin = Math.ceil(keyLengthMin * 4 * safetyFactor);		//safety factor so it works with biased files
+				
+		if(keyLength < keyLengthMin){				//repeat key file if it is too short
+			var n = 1;
+			while(keyLength < keyLengthMin){keyBin += keyBin; keyLength += keyLength; n++};
+			keyMsg.innerHTML = '<span style="color:red;">The key file is too short. It has been repeated ' + n + ' times</span>'
+		}
+		
+		if(shortLength.checked){keyBin = keyBin.slice(0,keyLengthMin); keyLength = keyLengthMin;};
+	}
+	
+	//key string is cut to size, now process it
+	//done in blocks if so set up
+	var blockLength = lengthBox.value;
+	if(blockLength == '0') blockLength = keyBin.length;
+	var nBlocks = Math.ceil(keyBin.length / blockLength),
+		period = Math.ceil(Math.sqrt(blockLength)),
+		blockBin = '',
+		resultBin = '';
+	
+	for(var i = 0; i < nBlocks; i++){
+		if(doubleLFG.checked || doublePlusLFG.checked){
+			blockBin = binLFG(keyBin.slice(i*blockLength,(i+1)*blockLength))
+		}else{
+			blockBin = keyBin.slice(i*blockLength,(i+1)*blockLength)
+		}
+		if(doublePlusLFG.checked) blockBin = transpose(blockBin,period);
+		if(!noLFG.checked) blockBin = binLFG(blockBin);
+		if(doubleInflation.checked) blockBin = binDouble(blockBin);
+		if(applyShuffle.checked) blockBin = transpose(blockBin,period);
+		if(!noInflation.checked) blockBin = binDouble(blockBin);
+		if(applyNeumann.checked) blockBin = binNeumann(blockBin);
+		resultBin += blockBin
+	}
+	
+	var keyBase64 = binToBase64(resultBin);
+	keystreamBox.innerHTML = base64ToFile(keyFileLink.innerHTML, keyBase64, 'rnd');	
+	keystreamQuality(resultBin);							//display statistics
+	keystreamQuality64(keyBase64);
+	
+	//finish off with encryption or decryption
+	if(plainFile && plainBox.innerHTML.match('data:')){
+		var cipher64 = binToBase64(stringXor(resultBin, plainBin));
+		cipherBox.innerHTML = base64ToFile(plainFileLink.innerHTML, cipher64, 'filepad');
+	}
+	execMsg.innerHTML = 'Done! See the result below'
+}
+
+//displays quality of the binary keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test at distances from 1 to 10
+function keystreamQuality(digits){
+	frequencies(base2,digits);
+	var chiNumber = chiSquared(base2,digits),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(base2,digits),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(base2,digits),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(base2,digits),
+		runsResult = runsNumber.toString().slice(0,6);
+	var	corrNumbers = corrArray(base2,digits,10),
+		corrResult = [];
+	for(var i = 0; i < 10; i++){
+		corrResult[i] = corrNumbers[i].toString().slice(0,6);
+		if(corrNumbers[i] > 2.7) corrResult[i] = '<span style="color:red;">' + corrResult[i] + '</span>'
+	}
+	if(chiNumber > 2.7) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 0.9) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+
+	qualityMsg.innerHTML = "Tests applied to the binary keystream with number of bits: " + digits.length + "<br>Chi-squared (less than 2.7 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 1) = " + entropyResult + "<br>Bits per run (should be close to 2.0) = " + runsResult;
+	qualityMsg.innerHTML += '<br>Independence test vs. distance (less than 2.7 is good): ' + corrResult.join('&nbsp;&nbsp;')
+}
+
+//displays quality of the base64 keystream. Performs five tests: single digit Chi-squared, Durbin-Watson (both compared to the uniform distribution), Shannon's entropy, runs test, and Chi-squared independence test at distances from 1 to 10
+function keystreamQuality64(digits){
+	frequencies(base64,digits);
+	var chiNumber = chiSquared(base64,digits),
+		chiResult = chiNumber.toString().slice(0,6);
+	var	dwNumber = durbinWatson(base64,digits),
+		dwResult = dwNumber.toString().slice(0,6);
+	var	entropyNumber = shannonEntropy(base64,digits),
+		entropyResult = entropyNumber.toString().slice(0,6);
+	var	runsNumber = runs(base64,digits),
+		runsResult = runsNumber.toString().slice(0,6);
+	if(indTest64.checked){
+		var	corrNumbers = corrArray(base64,digits,10),
+			corrResult = [];
+		for(var i = 0; i < 10; i++){
+			corrResult[i] = corrNumbers[i].toString().slice(0,6);
+			if(corrNumbers[i] > 4000) corrResult[i] = '<span style="color:red;">' + corrResult[i] + '</span>'
+		}	
+	}
+	if(chiNumber > 77.7) chiResult = '<span style="color:red;">' + chiResult + '</span>';
+	if(Math.abs(dwNumber - 2) > 0.1) dwResult = '<span style="color:red;">' + dwResult + '</span>';
+	if(entropyNumber < 5.9) entropyResult = '<span style="color:red;">' + entropyResult + '</span>';
+	if(Math.abs(runsNumber - 2) > 0.1) runsResult = '<span style="color:red;">' + runsResult + '</span>';
+
+	qualityMsg.innerHTML += "<br><br>Now the same applied to the base64 output with number of characters: " + digits.length + "<br>Chi-squared (less than 77.7 is good) = " + chiResult + "<br>DW statistic (should be close to 2.0) = " + dwResult + "<br>Shannon's entropy (should approach 6) = " + entropyResult + "<br>Chars per run (should be close to 2.0) = " + runsResult;
+	if(indTest64.checked) qualityMsg.innerHTML += '<br>Independence test vs. distance (less than 4000 is good): ' + corrResult.join('&nbsp;&nbsp;')
+}
+
+var freqArray = [];				//used by a lot of the other functions, so might as well do the calculation just once
+//counts frequency for each digit in the given base
+function frequencies(base,string){
+	var length = string.length,
+		baseLength = base.length,
+		data;
+	freqArray = [];
+	for(var i = 0; i < baseLength; i++){
+		data = 0;
+		for(var j = 0; j < length; j++){
+			if(string.charAt(j) == base.charAt(i)) data++
+		}
+		freqArray[i] = data
+	}	
+}
+
+//chi-squared statistic of a string in a given base
+function chiSquared(base,string){
+	var	result = 0,
+		baseLength = base.length,
+		expected = string.length / baseLength;
+	for(var i = 0; i < baseLength; i++){
+		result += Math.pow(freqArray[i] - expected, 2) / expected;
+	}
+	return result
+}
+
+//two-digit correlations at different distance, for a given base
+function corrArray(base,string,maxShift){
+	var	length = string.length,
+		output = new Array(maxShift),
+		baseLength = base.length,
+		data,result;	
+	for(var l = 1; l <= maxShift; l++){			//for each shift, do a 2-character chi-squared
+		result = 0;
+		for(var i = 0; i < baseLength; i++){					//each first character
+			for(var j = 0; j < baseLength; j++){				//each second character
+				data = 0;
+				var expected = freqArray[i] * freqArray[j] / length;		//expected P(xy) = P(x)*P(y)
+				if(expected > 0){										//in case a letter does not appear at all
+					for(var k = 0; k < length-l; k++){
+						if((string.charAt(k) == base.charAt(i)) && (string.charAt(k+l) == base.charAt(j))) data++
+					}
+					result += Math.pow(data - expected, 2) / expected;
+				}
+			}
+		}
+		output[l-1] = result
+	}
+	return output
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive digits that are expected to be random
+function durbinWatson(base,string){
+	var num = 0,
+		denom = 0,
+		baseLength = base.length,
+		length = string.length;
+	for(var i = 1; i < length; i++){
+		num += Math.pow(base.indexOf(string.charAt(i)) - base.indexOf(string.charAt(i-1)),2)
+	}
+	for(var i = 0; i < length; i++){
+		denom += Math.pow(base.indexOf(string.charAt(i)) - (baseLength - 1) / 2, 2)
+	}
+	return denom == 0 ? -1 : num/denom
+}
+
+//computes the entropy of a string of digits, in bits per digit
+function shannonEntropy(base,string){
+	var length = string.length,
+		entropy = 0,
+		baseLength = base.length,
+		frequency;
+	for(var i = 0; i < baseLength; i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of binary digits per run, to see how correlated consecutive digits are (2.0 for true random) It assumes an even base, so it won't work for odd
+function runs(base,string){
+	var count = 0,
+		large = false,
+		largeOld = false,
+		length = string.length,
+		cutoff = (base.length - 1) / 2;
+	for(var i = 0; i < length; i++){
+		large = base.indexOf(string.charAt(i)) > cutoff;
+		if(large != largeOld || i == 0){
+			count++
+		}
+		largeOld = large;
+	}
+	return string.length / count
+}
+</script>
+</head>
+
+<body>
+<h1 align="center">FilePad encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2016</p>
+<p>This page discusses a very simple way to extract entropy from any file so it can be used in a <a href="https://en.wikipedia.org/wiki/Gilbert_Vernam" target="_blank">Vernam</a>-style cipher. This could be very useful in practice. Consider this: a 4 TB drive (about $100 in mid-2016) can contain enough bits to encrypt a high-definition video feed (about 1000 kbits/s), continuously, for longer than a year! The trick is that those bits must be truly random, or at least appear to be random so that no cryptanalysis is possible, per <a href="https://en.wikipedia.org/wiki/Information-theoretic_security" target="_blank">Shannon's criterion</a>. This page is all about taking any file and turning its non-random bits into bits that will pass stringent randomness tests so we can use it for encryption.</p>
+<p>In order to do this, we will apply a choice of several simple algorithms to the binary data:</p>
+<ol>
+  <li><a href="https://en.wikipedia.org/wiki/Randomness_extractor#Von_Neumann_extractor" target="_blank">Von Neumann extractor</a>: take bits in pairs, if they are different, take the first (or the second, but do so consistently), if they are equal, ignore them and go to the next pair. This algorithm will produce unbiased bits—that is, ones are as likely to appear as zeroes—provided the original bits are uncorrelated, which means that any pairs of bits, separated by any distance, have the same probability. This operation reduces the number of bits to one-fourth the original or less.</li>
+  <li><a href="https://en.wikipedia.org/wiki/Transposition_cipher#Columnar_transposition" target="_blank">Columnar transposition</a>: write down the bit stream in rows of a given length, then read the result by columns. This separates bits that are correlated because they come from certain bytes or characters, so that adjacent bits have little correlation (so that the von Neumann extractor can be applied to them). This operation conserves the number of bits. Separation is maximized if the row length is the square root of the string length.</li>
+  <li><a href="https://en.wikipedia.org/wiki/Bernoulli_process#Iterated_Von_Neumann_extractor" target="_blank">Binary inflation</a>: since the von Neumann extractor only requires that the bits in each pair be uncorrelated, we can reuse some bits as long as the new pairs are different from the previous ones. One simple way to do this is to take the first (or second, but be consistent) bit of each pair and append it to the end of the stream, whether or not they are equal. This operation produces a string that is double the length of the original, less one.</li>
+  <li><a href="https://en.wikipedia.org/wiki/Lagged_Fibonacci_generator" target="_blank">Lagged Fibonacci generator</a> (LFG): take the last bit and write it under the first bit, and then make a new second row by writing down the result of XORing the top and bottom bits immediately to the left. The process can be repeated as many times as one desires, always resulting in a string of the same length as the original. The effect of this is that every original bit affects all bits that follow, if applied once, or all bits in the resulting string, if applied twice or more times.</li>
+</ol>
+<p>There is a preferred order to these operations. The Von Neumann extractor, if used, needs to be the last operation because it is the only one that is mathematically guaranteed to produce unbiased bits. Inflations are best applied right before the extractor. If there are two of them, then it is best to do the transposition, if any, between them, since otherwise there would be repetitions in the resulting stream. Finally, LFG operations tends to introduce spurious correlations that need to be ironed out by transposition; therefore the LFG steps, if any, should be done before the regular transposition. An additional transposition can be performed between LFG operations if there are two of them.</p>
+<h2>Step 1. Key file input</h2>
+<p>We begin by taking a file from the computer and loading it in the box below. It is loaded as a link so that large files can be used (Chrome can take up to 1.5 MB, Firefox can take even more). Although invisible here, the file will be loaded as a text string consisting of base64 characters.</p>
+<h3>Key File</h3>
+<div name="keyBox" class="cssbox" id="keyBox" style="font-size:larger;background-color:#E4F7FF;width:500px;" title="Enter the key text taken from a book or whatever here"></div>
+<button class="cssbutton" id="clearKeyBtn" onClick="keyBox.innerHTML = '';clearDone();">Clear</button>
+<input class="custom-file-input" type="file" id="keyFile"  onChange="loadKeyFile();" onClick="this.value = '';clearDone();" title="open dialog to select file to load"/>
+<span id="keyMsg">If there is any problem with the file, a warning will appear here</span>
+<br>
+<p>Typically, uncompressed files contain large regions filled with ones or zeroes. These &quot;lumps&quot; will detract from the randomness of the result and may be best to remove them. The optional algorithm we use here simply removes repeated base64 characters and replaces them with a single copy.</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="repeatModes" id="leaveReps" onClick="clearDone();" title='leave file as is' checked/>
+&nbsp; Leave repeats&nbsp;&nbsp;
+<input type="radio" name="repeatModes" id="removeReps" onClick="clearDone();" title="remove repeated base64 characters" />
+&nbsp; Remove repeats
+</p>
+
+<p>And let us now decide what algorithms will be applied, and how many times. The default is: use Von Neumann with double inflation (so that the number of bits is roughly conserved), square transposition between the inflation steps, no LFG applied before those:</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="neumannModes" id="applyNeumann" onClick="clearDone();" title="apply Von Neumann extractor at the end" checked/>
+&nbsp; Apply Von Neumann&nbsp;&nbsp;
+<input type="radio" name="neumannModes" id="noNeumann" onClick="clearDone();" title='no von Neumann extractor'/>
+&nbsp; No Von Neumann</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="inflationModes" id="doubleInflation" onClick="clearDone();" title="double the bits twice" checked/>
+&nbsp; Double inflation&nbsp;&nbsp;
+<input type="radio" name="inflationModes" id="singleInflation" onClick="clearDone();" title='double the bits once'/>
+&nbsp; Single inflation&nbsp;
+<input type="radio" name="inflationModes" id="noInflation" onClick="clearDone();" title='do not double the bits'/>
+&nbsp; No inflation</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="shuffleModes" id="applyShuffle" onClick="clearDone();" title="apply transposition with a square pattern" checked/>
+&nbsp; Apply Transposition&nbsp;&nbsp;
+<input type="radio" name="shuffleModes" id="noShuffle" onClick="clearDone();" title='no transposition'/>
+&nbsp; No Transposition</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="lfgModes" id="noLFG" onClick="clearDone();" title="do not apply LFG at the start" checked/>
+&nbsp; No LFG&nbsp;&nbsp;
+<input type="radio" name="lfgModes" id="singleLFG" onClick="clearDone();" title='apply LFG once'/>
+&nbsp; Single LFG&nbsp;&nbsp;
+<input type="radio" name="lfgModes" id="doubleLFG" onClick="clearDone();" title='apply LFG twice'/>
+&nbsp; Double LFG&nbsp;&nbsp;
+  <input type="radio" name="lfgModes" id="doublePlusLFG" onClick="clearDone();" title='apply LFG twice, with transposition in-between'/>
+&nbsp; Double LFG w/ Transposition in-between</p>
+
+<p>If we use the result to encrypt another file, we can save computation by processing only the number of bits we need rather than the whole file. Since the von Neumann extractor might throw away more than three quarters of the bits fed into it, we'll be safe and add an extra 50% to the bits taken from the original, in all cases when this depends on the size of the second file:</p>
+
+<p>&nbsp;&nbsp;<input type="radio" name="lengthModes" id="shortLength" onClick="clearDone();" title="take only plain file length plus 50%" checked/>
+&nbsp; Process only required bits&nbsp;&nbsp;
+<input type="radio" name="lengthModes" id="fullLength" onClick="clearDone();" title='use the full key file'/>
+&nbsp; Process whole file</p>
+<p>Finally, we can process the whole string or cut it into smaller pieces and then process each one. The box below sets the piece size, in bits (0 means don't cut).</p>
+<p>
+  <input type="text" id="lengthBox" style="font-size:larger;background-color:#E4F7FF;width:200px;" onClick="clearDone();" title="number of bits to be processed at a time (0 is all of them)" value="0">
+  </input>
+Allowed values are integers 0 to file length.</p>
+<p>&nbsp;</p>
+
+<h2>Step 2. Plain file / encrypted file</h2>
+<p>Here we can optionally input a second file, which also loads as a link. If the key file is too small to encrypt this file, a warning will appear above. If the file is encrypted and the key file and all settings are the same as for encryption, it will be decrypted below.</p>
+<h3>File to be encrypted/decrypted</h3>
+<p>
+  <div name="plainBox" class="cssbox" id="plainBox" style="font-size:larger;background-color:#E4F7FF;width:500px;" title="Enter your plaintext (or ciphertext, when decrypting) here" onKeyUp="processPlain();" onPaste="processPlain();"></div>
+  <button class="cssbutton" id="clearPlainBtn" onClick="plainBox.innerHTML = ''; clearDone();">Clear</button>
+  <input class="custom-file-input" type="file" id="plainFile" onChange="loadPlainFile();" onClick="this.value = '';clearDone();" title="open dialog to select file to load"/>
+</p>
+<p>&nbsp;</p>
+
+<h2>Step 3. Keystream file</h2>
+<p>The next step is to generate the &quot;keystream file&quot; by applying the operations selected above to the key file. We can encrypt a plaintext file (or decrypt an encrypted file) as a bonus, as soon as the button below is clicked. But there is still an extra setting to be aware of. We can keep reusing the key file so long as we &quot;cut&quot; it at a different point each time (especially if the whole file is processed every time), just as a deck of cards is cut and the bottom part is the placed at the top. The place for the cut will be entered as a percentage of the total, from 0% (no cut), to 100% (again, no cut), including decimals. The cut operation is applied right after removing repeats.</p>
+<h3>Cut location (percent)</h3>
+
+<input type="text" id="cutBox" style="font-size:larger;background-color:#E4F7FF;width:200px;" onClick="clearDone();" title="percentage at the cut" value="0">% </input>Allowed values are 0 to 100. Decimals are OK.
+
+<p>And now, the all important button (if you check the box an extra *long* test will be added):</p>
+
+<button class="cssbutton" id="executeBtn" onClick="startProcess();">Execute</button>
+&nbsp;&nbsp;&nbsp;<input type="checkbox" id="indTest64" title='include base64 independence test'/>
+&nbsp; base64 indep.
+&nbsp;&nbsp;<span id="execMsg"></span>
+
+<p>And here is the resulting keystream file, followed by some analysis of its randomness. You can save it by right-clicking on it:</p>
+
+<h3>Keystream file</h3>
+<div id="keystreamBox" class="cssbox" style="font-size:larger;width:500px;"></div>
+
+<p><span id="qualityMsg">Information about keystream quality will appear here</span></p>
+<p>&nbsp;</p>
+
+<h2>Step 4. Encrypted / decrypted file</h2>
+<p>And here is the second file after its bits have been XORed with an equal number of bits from the keystream file, starting from the beginning. Like the keystream file, it can be saved by right-clicking on it.</p>
+
+<h3>Encrypted/decrypted file</h3>
+<div id="cipherBox" class="cssbox" style="font-size:larger;background-color:#DCF2D1;width:500px;"></div>
+</body>
+</html>

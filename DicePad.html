@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en" xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" manifest="dicepad.appcache">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>DicePad encryption</title>
+<meta name="Keywords" content="passlok, URSA, one-time pad, browser, encryption, decryption, symmetric, signature, javascript, PGP, PRISM">
+<meta name="Description" content="DicePad encryption">
+<meta name="author" content="F. Ruiz">
+<meta name="robots" content="index">
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="bookpad-touch-icon.png">
+
+<!--CSS stylesheet containing the Light color scheme-->
+<style>
+html {
+	-webkit-text-size-adjust: 100%;
+	overflow-y: scroll;
+}
+body {
+	font-family: Sans-Serif;
+	font-size: large;
+	margin-left: 1%;
+	margin-right: 1%;
+	overflow: auto;
+	background-color: #FFFFFF;
+	color: #000000;
+}
+.cssbutton {
+	-webkit-border-radius: 0;
+	-moz-border-radius: 0;
+	border-radius: 10px;
+	font-family: Arial;
+	font-size: 22px;
+	padding: 10px;
+	text-decoration: none;
+	border: 0px;
+	margin-right: -2px;
+	color: #666666;
+	background: #e6e6e6;
+}
+.cssbutton:hover {
+	text-decoration: none;
+	cursor: pointer;
+	background: #d8d8d8;
+}
+.cssbutton:disabled {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbutton:disabled:hover {
+	color: #b7b7b7;
+	background: #f4f4f4;
+	cursor: default;
+}
+.cssbox {
+	-webkit-border-radius: 15px;
+	-moz-border-radius: 15px;
+	border-radius: 15px;
+	font-size: large;
+	font-family: monospace;
+	padding: 15px;
+	text-decoration: none;
+	width: 100%;
+	-webkit-appearance: none;
+	box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-shadow: none;
+	-moz-box-shadow: none;
+	box-shadow: none;
+	color: #000000;
+	background: #ffffee;
+	border: 1px solid #D3D3D3;
+	overflow: auto;
+}
+input[type=radio] {
+	/* Larger radio buttons */
+	-ms-transform: scale(1.7); /* IE */
+	-moz-transform: scale(1.7); /* FF */
+	-webkit-transform: scale(1.7); /* Safari and Chrome */
+	-o-transform: scale(1.7); /* Opera */
+	padding: 0px;
+	cursor: pointer;
+	border: 1px solid #eeeeee;
+}
+</style>
+
+<script>
+var base6 = '012345',
+	base10 = '0123456789',
+	base36 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+	base36B = base36;									//this one will be scrambled according to the key text
+
+//makes the scrambled alphabet, starting from a string
+function makeAlphabet(string){
+	if(keyBasedMode.checked){
+		string = string.removeDiacritics().toUpperCase().replace(/[^0-9A-Z]/g,'');
+		var result = '', alpha = "ZYXWVUTSRQPONMLKJIHGFEDCBA", digits = '0123456789';
+		for(var i=0; i < string.length; i++){
+			if(result.indexOf(string[i]) == -1){
+				result += string[i];
+				var reg = new RegExp(string[i]);
+				alpha = alpha.replace(reg,'');
+				digits = digits.replace(reg,'');
+			}
+		}
+		result += digits + alpha;
+		base36B = result;
+	}else{															//straight alphabet otherwise
+		base36B = base36;
+	}
+}
+
+//fills the Polybius square according to the scrambled alphabet
+function fillSquare(){
+	var straightSquare = "    ~ ! @ # _ %\n   ------------\n~ | 0 1 2 3 4 5\n! | 6 7 8 9 A B\n@ | C D E F G H\n# | I J K L M N\n_ | O P Q R S T\n% | U V W X Y Z",
+		base6B = '~!@#_%';
+	for(var i=0; i<straightSquare.length; i++){						//fill the body
+		var index = base36.indexOf(straightSquare.charAt(i));
+		if(index != -1) straightSquare = straightSquare.slice(0,i) + base36B.charAt(index) + straightSquare.slice(i+1);
+	}
+	for(var i=0; i < 6; i++){										//fill the indices
+		var reg = new RegExp(base6B[i],"g");
+		straightSquare = straightSquare.replace(reg,base6[i])
+	}
+	square.innerText = straightSquare.toUpperCase()
+}
+	
+//uses a Polybius square to convert plaintext into base6 digits (string)
+function encodeText(text){
+	text = text.toUpperCase().removeDiacritics().replace(/[^0-9A-Z]/g,'').trim();				//remove accents etc.
+	var result = '', i, index, digit1, digit2;
+	for(var i=0; i<text.length; i++){
+		index = base36B.indexOf(text.charAt(i)),
+		digit1 = Math.floor(index / 6),
+		digit2 = index % 6;
+		result += digit1.toString() + digit2.toString();
+	}
+	return result
+}
+	
+//decodes encoded base6 digits back to original text
+function decodeDigits(digits){
+	digits = digits.replace(/[^0-5]/g,'').trim();
+	var output = '';
+	for(var i=0;i<digits.length;i+=2) output += base36B.charAt(parseInt(digits[i])*6+parseInt(digits[i+1]));
+	return output
+}
+
+//to remove accents etc.
+String.prototype.removeDiacritics = function() {
+    var diacritics = [
+        [/[\300-\306]/g, 'A'],
+        [/[\340-\346]/g, 'a'],
+        [/[\310-\313]/g, 'E'],
+        [/[\350-\353]/g, 'e'],
+        [/[\314-\317]/g, 'I'],
+        [/[\354-\357]/g, 'i'],
+        [/[\322-\330]/g, 'O'],
+        [/[\362-\370]/g, 'o'],
+        [/[\331-\334]/g, 'U'],
+        [/[\371-\374]/g, 'u'],
+        [/[\321]/g, 'N'],
+        [/[\361]/g, 'n'],
+        [/[\307]/g, 'C'],
+        [/[\347]/g, 'c'],
+		[/[\337]/g, 'ss'],
+    ];
+    var s = this;
+    for (var i = 0; i < diacritics.length; i++) {
+        s = s.replace(diacritics[i][0], diacritics[i][1]);
+    }
+    return s;
+}
+
+//processes key text and starts encryption or decryption
+function processKey(){
+	if(keyBox.value.trim() == '') return;
+	var text = keyBox.value.removeDiacritics().toUpperCase().trim(),								//remove accents and make upper case
+		firstSentence = text.replace(/['"]/g,'').split(/\./)[0];									//first sentence		
+	makeAlphabet(firstSentence);																	//make scrambled alphabet
+	fillSquare();
+	if(plainBox.value.trim() == '') return;														//stop if there is no encoded plaintext
+
+	if(!period1Box.value || !period2Box.value || !period3Box.value) return;
+	keyStreamBox.innerHTML = makeKeyStream(period1Box.value,period2Box.value,period3Box.value);
+	keyStreamQuality();
+	cipherBox.innerHTML = subtractFromKeyStream(keyStreamBox.innerHTML,plainBox.value.replace(/[^0-5]/g,'')).match(/.{1,5}/g).join(' ');
+	cipherTextBox2.innerHTML = decodeDigits(cipherBox.innerHTML.replace(/\s/g,''))
+	cipherTextBox.innerHTML = cipherTextBox2.innerHTML.match(/.{1,5}/g).join(' ');
+}
+
+//fills encoded text box and initiates process
+function processPlainText(){
+	plainBox.value = encodeText(plainTextBox.value);
+	processKey();
+}
+
+//fills decoded text box and initiates process
+function processPlain(){
+	plainTextBox.value = decodeDigits(plainBox.value);
+	processKey();
+}
+
+//triggers from radio buttons
+function encodingChanged(){
+	setTimeOut(function(){
+		processPlainText();
+	},500)
+}
+
+//makes sure the periods are correctly formatted and initiates process
+function processPeriods(){
+	var rowsNum1 = period1Box.value.toString().replace(/[^0-9]/g,''),
+		rowsNum2 = period2Box.value.toString().replace(/[^0-9]/g,''),
+		rowsNum3 = period3Box.value.toString().replace(/[^0-9]/g,'');
+	if(rowsNum1 < 1) rowsNum1 = 1;
+	if(rowsNum2 < 1) rowsNum2 = 1;
+	if(rowsNum3 < 1) rowsNum3 = 1;
+	period1Box.value = rowsNum1;
+	period2Box.value = rowsNum2;
+	period3Box.value = rowsNum3;	
+	processKey();
+}
+
+//makes the keyStream from the key text, given the needed length and the shuffling periods
+function makeKeyStream(n1,n2,n3){
+	var length = plainBox.value.trim().length,
+		keyLength = 4*length;										//first estimate; add a 33% extra to account for rejects
+		lineSize = LCM(n1,LCM(n2,n3)),								//size of the shuffling block
+		nChunks = Math.ceil(keyLength / lineSize / 3),
+		text = keyBox.value.removeDiacritics().toUpperCase().trim().replace(/[^0-9A-Z]/g,'');		//strip all but letters and digits
+	keyLength = lineSize * nChunks * 3;
+
+	if(text.length >= keyLength){
+		text = text.slice(0,keyLength);
+		lengthWarning.innerHTML = '<span style="color:green;">The key text is long enough</span>'
+	}else{
+		while(text.length < keyLength){text += text};													//extend key text if too short
+		text = text.slice(0,keyLength);
+		lengthWarning.innerHTML = '<span style="color:red;">The key text is too short and has been repeated</span>'
+	}	
+	procKeyBox.innerHTML = text;
+	
+	var	result = '',
+		resultClean = '',
+		i = 0,
+		count = 0,
+		partsRaw1 = '',
+		partsRaw2 = '',
+		partsRaw3 = '',
+		partsShuffled1 = '',
+		partsShuffled2 = '',
+		partsShuffled3 = '';
+	blockLengthBox.innerHTML = lineSize * 3;
+
+	var j = 0;
+	while(resultClean.length < plainBox.value.length){
+		var text1 = text.slice(j*lineSize,(j+1)*lineSize),
+			text2 = text.slice((j+1)*lineSize,(j+2)*lineSize),
+			text3 = text.slice((j+2)*lineSize,(j+3)*lineSize);
+		partsRaw1 += text1 + '&nbsp;';
+		partsRaw2 += text2 + '&nbsp;';
+		partsRaw3 += text3 + '&nbsp;';
+		text1 = blockShuffle(text1,n1,lineSize/n1);
+		text2 = blockShuffle(text2,n2,lineSize/n2);
+		text3 = blockShuffle(text3,n3,lineSize/n3);
+		partsShuffled1 += text1 + '&nbsp;';
+		partsShuffled2 += text2 + '&nbsp;';
+		partsShuffled3 += text3 + '&nbsp;';
+		for(i = 0; i < lineSize; i++){
+			var index1 = base36.indexOf(text1[i]),
+				index2 = base36.indexOf(text2[i]),
+				index3 = base36.indexOf(text3[i]);
+			if((index1 != index2) && (index1 != index3) && (index2 != index3)){
+				count = 0;
+				if(index1 < index2) count += 2;
+				if(index1 < index3) count += 2;
+				if(index2 < index3) count += 1;
+				result += count.toString();
+				resultClean += count.toString();
+			}else if(index1 != -1){
+				result += '.'
+			}
+		}
+		result += '&nbsp;';
+		j+=3;
+	}
+	partsRawBox.innerHTML = partsRaw1 + '<br>' + partsRaw2 + '<br>' + partsRaw3;
+	partsShuffledBox.innerHTML = partsShuffled1 + '<br>' + partsShuffled2 + '<br>' + partsShuffled3;
+	rawKeyStreamBox.innerHTML = result;
+	result = resultClean;
+	
+	if(lfgMode.checked){result = lfgSingle(result);}else{lfgBox.innerHTML = '';}
+	
+	return result
+}
+
+//these are needed by the previous function
+function GCD(x,y){
+  while(y) {  
+    var t = y;  
+    y = x % y;  
+    x = t;  
+  }  
+  return x;
+}
+
+function LCM(x,y){
+	return x * y / GCD(x,y)
+}
+
+//shuffles a block by writing it as so many rows and columns and transposing
+function blockShuffle(string,rows,columns){
+	var blockSize = rows * columns,
+		nChunks = Math.ceil(string.length / blockSize),
+		output = '', partial = '',
+		i,j;
+	for(i = 0; i < nChunks; i++){
+		partial = '';
+		for(j = 0; j < blockSize; j++){
+			var period = Math.floor(j / rows);
+			partial += string.slice(i*blockSize,(i+1)*blockSize).charAt((j % rows) * columns + period)
+		}
+		output += partial
+	}
+	return output
+}
+
+//does a single row of LFG
+function lfgSingle(string){
+	var length = string.length,
+		lfg = string + string.slice(-1);
+	for(var i=0; i < length-1; i++){										//stop after 1 row
+		num = (parseInt(lfg[i]) + parseInt(lfg[i+length])) % 6;
+		lfg += num.toString();
+	}
+	lfgBox.innerHTML = lfg.slice(0,length) + '<br>' + lfg.slice(-length)
+	return lfg.slice(-length)
+}
+
+//combines encoded plaintext and keystream to obtain ciphertext digits, also used to obtain the plaintext from the ciphertext
+function subtractFromKeyStream(KeyStream,cipherDigits){
+	var output = '',
+		num;
+	for(var i=0; i<cipherDigits.length; i++){
+		num = (parseInt(KeyStream[i]) - parseInt(cipherDigits[i])) % 6;
+		if(num < 0) num += 6;
+		output += num.toString();
+	}
+	return output	
+}
+
+//displays quality of the keystream. Performs four tests: single digit Chi-squared, two-digit Chi-squared, Durbin-Watson (all compared to the uniform distribution), and Shannon's entropy
+function keyStreamQuality(){
+	var digits = keyStreamBox.innerHTML.replace(/[^0-5]/g,''),										//keep only base6
+		ending = digits.slice(-10),
+		repeats = digits.split(ending).length - 1,
+		chiSquare = chiSquared(digits),
+		chiNumber = chiSquare.toString().slice(0,6),
+		chi2Number = chiSquared2(digits).toString().slice(0,6),
+		dwNumber = durbinWatson(digits).toString().slice(0,5),
+		entropyNumber = shannonEntropy(digits).toString().slice(0,6),
+		runsNumber = runs(digits).toString().slice(0,6);
+	
+	if(chiSquare < 10 && repeats <= 1){
+		qualityMsg.style.color = 'green';
+		qualityMsg.innerHTML = "The keystream does not repeat and figures are uniformly distributed. Chi-squared = " + chiNumber + " (less than 9.23 is good). 2-digit Chi-squared = " + chi2Number + " (less than 34.4 is good). DW statistic = " + dwNumber + " (should be close to 2.0). Shannon's entropy (should approach 2.585 bits/digit) = " + entropyNumber + " Digits per run (should be close to 2.0) = " + runsNumber;
+	}else if(repeats > 1){
+		if(chiSquare < 14.7){
+			qualityMsg.style.color = 'orange';
+			qualityMsg.innerHTML = "The keystream repeats " + repeats + " times, but figures are uniformly distributed. Chi-squared = " + chiNumber + " (less than 9.23 is good). 2-digit Chi-squared = " + chi2Number + " (less than 34.4 is good). DW statistic = " + dwNumber + " (should be close to 2.0). Shannon's entropy (should approach 2.585 bits/digit) = " + entropyNumber + " Digits per run (should be close to 2.0) = " + runsNumber;
+		}else{
+			qualityMsg.style.color = 'red';
+			qualityMsg.innerHTML = "The keystream repeats " + repeats + " times, and some figures are found more or less often than normal. Chi-squared = " + chiNumber + " (less than 9.23 is good). 2-digit Chi-squared = " + chi2Number + " (less than 34.4 is good). DW statistic = " + dwNumber + " (should be close to 2.0). Shannon's entropy (should approach 2.585 bits/digit) = " + entropyNumber + " Digits per run (should be close to 2.0) = " + runsNumber;
+		}
+	}else{
+		qualityMsg.style.color = 'orange';
+		qualityMsg.innerHTML = "The keystream does not repeat, but some figures are found more or less often than normal. Chi-squared = " + chiNumber + " (less than 9.23 is good). 2-digit Chi-squared = " + chi2Number + " (less than 34.4 is good). DW statistic = " + dwNumber + " (should be close to 2.0). Shannon's entropy (should approach 2.585 bits/digit) = " + entropyNumber + " Digits per run (should be close to 2.0) = " + runsNumber;
+	}
+}
+
+//computes the chi-squared statistic for a sequence of base6 digits expected to be random
+function chiSquared(string){
+	var	result = 0,
+		data = 0,
+		expected = string.length / 6;
+	for(var i=0; i<6; i++){
+		data = 0;
+		for(var k=0; k<string.length; k++){
+			if(string.charAt(k) == i.toString()) data++
+		}
+		result += Math.pow(data - expected,2) / expected;
+	}
+	return result
+}
+
+//computes the chi-squared statistic for sequences of 2 base6 digits expected to be random
+function chiSquared2(string){
+	var result = 0,
+		data = 0,
+		expected = (string.length - 1) / 36;	
+	for(var i=0; i<6; i++){
+		for(var j=0; j<6; j++){
+			data = 0;
+			for(var k=0; k<string.length-1; k++){
+				if((string.charAt(k) == i.toString()) && (string.charAt(k+1) == j.toString())) data++
+			}
+			result += Math.pow(data - expected,2) / expected;
+		}
+	}
+	return result
+}
+
+//computes the Durbin-Watson statistic for a sequence of consecutive base6 digits that are expected to be random
+function durbinWatson(string){
+	var num = 0,
+		denom = 0;
+	for(var i=1;i<string.length;i++){
+		num += Math.pow(parseInt(string[i]) - parseInt(string[i-1]),2)
+	}
+	for(var i=0;i<string.length;i++){
+		denom += Math.pow(parseInt(string[i]) - 2.5,2)					//the average value is 2.5
+	}
+	if(denom !=0){return num/denom}else{return -1}
+}
+
+//calculate relative frequencies of digits, 0 to 5
+function frequencies(string){
+	var freqArray = [];
+	for(var i=0; i<6; i++){
+		data = 0;
+		for(var k=0; k<string.length; k++){
+			if(string.charAt(k) == i.toString()) data++
+		}
+		freqArray[i] = data
+	}
+	return freqArray
+}
+
+//computes the entropy of a string of digits, in bits per digit
+function shannonEntropy(string){
+	var freqArray = frequencies(string),
+		entropy = 0,
+		frequency;
+	for(var i=0;i<6;i++){
+		if(freqArray[i] != 0){
+			frequency = freqArray[i] / string.length;
+			entropy -= frequency * (Math.log(frequency) / Math.LN2);
+		}
+	}
+	return entropy
+}
+
+//computes the number of digits per run, to see how correlated consecutive digits are (2.0 for true random)
+function runs(string){
+	var count = 0, large = false, largeOld = false, i = 0;
+	for(i = 0; i < string.length; i++){
+		large = parseInt(string[i]) > 2.5;
+		if(large != largeOld || i == 0){
+			count++
+		}
+		largeOld = large;
+	}
+	return string.length / count
+}
+</script>
+
+</head>
+
+<body>
+<h1 align="center">DicePad encryption</h1>
+<p align="center">&#169; Francisco Ruiz, 2015</p>
+<p>This page implements the paper-and-pencil &quot;DicePad&quot; cipher by F. Ruiz for those who wish to use a computer as a convenience. All steps can be performed by hand without excessive effort. The process is described in detail in <a href="http://prgomez.com/chaos-from-order/" target="_blank">this article</a>.</p>
+<p>DicePad uses normal text taken from a book or similar source to generate a base6 one-time pad of sorts, which is then used to encrypt a message.  A 6x6 <a href="https://en.wikipedia.org/wiki/Polybius_square" target="_blank">Polybius square</a> is then used to encode the letters and decimal digits in the plaintext into pairs of digits 0-6, and then the result is subtracted from the base6 keystream to produce the ciphertext. The base6 ciphertext can then be optionally decoded back to letters and digits. Since common text has an average entropy of 1.58 bits per character and the keystream-producing method uses three pieces of text of length 1.23 times the length of the plaintext, the key text has an entropy of 1.58 x 3 x 1.23 = 5.7 bits/plaintext character, which is greater than the 5.19 bits/character of pure random digits and letters (base36), thus potentially producing a perfectly random keystream, which ensures a perfect cipher per Shannon's criterion.</p>
+<p>The process is identical for encryption and decryption. In the latter case, the keystream is generated in exactly the same way from the same source, and then the ciphertext is subtraced from it, resulting in the plaintext.</p>
+<p>&nbsp;</p>
+<h2>Step 1. Encoding set-up</h2>
+<p>To cover the case where the encoding square depends on the key text, let us enter the key text ahead of everything else in the box below, which is shaded blue like all the other boxes where you can enter something. This key text will be used to encrypt the plaintext (or decrypt the ciphertext), and then <em>it will never be used again</em>.</p>
+<h3>Key Text</h3>
+<textarea id="keyBox" class="cssbox" onPaste="processKey();" onKeyUp="processKey();" style="height:200px;font-size:larger;background-color:#E4F7FF;" title="Enter the key text taken from a book or whatever here. It must contain at least two words."></textarea>
+<p>A key-derived square would be made this way: take the first sentence of the key text and start filling the square, by rows, with the different letters and digits that appear as you read the sentence; then follow with the rest of the digits, in natural order, and the rest of the letters, in reverse order. The resulting square is shown below. This will be the default square if so selected in the settings:</p>
+<pre id="square" align="center" style="font-size:xx-large;">
+    0 1 2 3 4 5
+   ------------
+0 | 0 1 2 3 4 5
+1 | 6 7 8 9 A B
+2 | C D E F G H
+3 | I J K L M N
+4 | O P Q R S T
+5 | U V W X Y Z</pre>
+<p>To encode using the square, simply replace each letter or digit with the row number followed by the column number, ignoring spaces and punctuation. Examples with default encoding: s = 44, H = 25, 8 = 12.</p>
+<h3>Settings</h3>
+<p>So let us tell the program here whether or not we are basing the encoding square on the key text. <strong>Warning:</strong> encrypted messages using default encoding can be altered by an adversary, plus the key text can be recovered if the plaintext is known.</p>
+<p>
+  &nbsp;&nbsp;<input type="radio" name="encodingmodes" id="keyBasedMode" onClick="processPlainText();processPlainText();" title="use a square based on the key text" checked/>
+  &nbsp; Key text-derived square&nbsp;&nbsp;
+  <input type="radio" name="encodingmodes" id="defaultMode"  onClick="processPlainText();processPlainText();" title="use the standard square" />
+  &nbsp; Default square</p>
+<p>There is also the possibility of running a lagged Fibonacci generator (LFG) right after the keystream is generated in order to achieve better randomness when the plaintext is very long. This is selected here:</p>
+<p>&nbsp;
+  <input type="radio" name="lfgmodes" id="noLfgMode" onClick="processKey();" title="no additional keystream processing" checked/>
+&nbsp; No LFG&nbsp;&nbsp;
+<input type="radio" name="lfgmodes" id="lfgMode"  onClick="processKey();" title="run LFG on raw keystream" />
+&nbsp; Use LFG</p>
+<p>&nbsp;</p>
+<h2>Step 2. Plaintext encoding / Ciphertext preparation</h2>
+<p>Now we write the plaintext that we wish to encrypt, which will be converted to lowercase. Punctuation and spaces will be removed. Diacritical marks (accents) will be ignored.</p>
+<h3>Plaintext / Ciphertext</h3>
+<textarea id="plainTextBox" class="cssbox" onPaste="processPlainText();" onKeyUp="processPlainText();" style="font-size:larger;background-color:#E4F7FF;" title="Enter your plaintext here"></textarea>
+<p>And below is the same text, processed and encoded as base6 digits. If now you type into the Encoded Plaintext box, its contents are automatically decoded and the result placed in the Plaintext box above. When decrypting a ciphertext already encoded as base6 digits, we start with the next box.</p>
+<h3>Encoded Plaintext / Ciphertext</h3>
+<textarea id="plainBox" class="cssbox" onPaste="processPlain();" onKeyUp="processPlain();" style="font-size:larger;background-color:#E4F7FF;"></textarea>
+<h3>&nbsp;</h3>
+<h2>Step 3. Keystream generation</h2>
+<p>The next step is to generate the keystream. We begin by stripping spaces, accents, and punctuation from the key text (but leaving numerals on) and taking a sufficient number of blocks of it of a certain length, calculated below. We need a minimum of three characters per encoded plaintext digit. Since the keystream-generating process produces some rejects, we take a total amount of text that is a 23% longer, that is, 3 x 1.23 = 3.7 times the length of the plaintext (or ciphertext, when decrypting). If the key text is not long enough, it is repeated and a warning is shown below.</p>
+<h3>Processed Key Text</h3>
+<div id="procKeyBox" class="cssbox" ></div>
+<span id="lengthWarning">This is where the warning will appear</span>
+<p> The blocks are going to be split into three parts, which we will write into three separate lines below, so the block length must be a multiple of 3. If shuffling is used, each line must be a mulltiple of the shuffling period applied, so the line length is the least common multiple of the shuffling periods, entered below. The first row contains the first part of each block, the second row the second part, and the third row the third part. Blocks are arranged horizontally, separated by spaces:</p>
+<h3>Key Text set up as three rows, unshuffled</h3>
+<div id="partsRawBox" class="cssbox" style="height:120px;"></div>
+<p>Now the letters (and any digits) in each part will be shuffled by leaving a constant number of spaces (period -1) between letters as we begin to write each part, continuing at the first available space in that part every time the end is reached. Example with period 3 shuffling: &quot;ABCDEFGHIJKL&quot; becomes &quot;AEIBBJCGKDHL&quot;. It is best to use a different period for each part, so the total length of each part is the least common multiple of the three periods. Default periods are 2,4,5, which lead to parts 20 characters long, for a total of 60 characters per block. This can be changed in the boxes below.</p>
+<h3>Shuffling Periods</h3>
+<p>
+  Part 1: 
+  <input type="text" id="period1Box" onPaste="processPeriods();" onKeyUp="processPeriods();" style="font-size:larger;background-color:#E4F7FF;width:30px;" title="period of part 1" value="12">
+&nbsp;&nbsp;&nbsp;Part 2:
+  <input type="text" id="period2Box" onPaste="processPeriods();" onKeyUp="processPeriods();" style="font-size:larger;background-color:#E4F7FF;width:30px;" title="period of part 2" value="2">
+&nbsp;&nbsp;&nbsp;Part 3:
+  <input type="text" id="period3Box" onPaste="processPeriods();" onKeyUp="processPeriods();" style="font-size:larger;background-color:#E4F7FF;width:30px;" title="period of part 3" value="4">
+</p>
+<p>With these values, each block comprises this many characters:</p>
+<div id="blockLengthBox" class="cssbox" style="width:60px;"></div>
+<p>And this is the result after shuffling:</p>
+<h3>Shuffled Key Text</h3>
+<div id="partsShuffledBox" class="cssbox" style="height:120px;"></div>
+<p>And now we are going to calculate a &quot;die throw&quot; (value 0 to 5) from each column: start with 0 value and then do this:</p>
+<ol>
+  <li>Add 2 if the character on the second row follows the character on the first row in alphabetical order (digits precede all letters), then add 2 if the character on the third row follows that on the first.</li>
+  <li>Add 1 if the character on the third row follows that on the second.</li>
+  <li>Skip the column and go to the next if any two characters are the same.</li>
+</ol>
+<p>The result is the raw keystream, where dots mark the skips:</p>
+<h3>Raw Keystream</h3>
+<div id="rawKeyStreamBox" class="cssbox" ></div>
+<p>If a LFG is to be used, we apply it now. Take the last digit of the raw keystream and write it below the first. Then add those two together, modulo 6, and write the result below the second digit. Modulo 6 addition means that 6 is subtracted from the result whenever the sum gives 6 or more. Then continue doing the same until the second row is filled. That second row is the LFG-processed keystream (will be the same as the raw keystream if no LFG is used). Then randomness of the final keystream is measured by different tests, and the result is displayed below.</p>
+<h3>LFG calculation</h3>
+<div id="lfgBox" class="cssbox" style="height:100px;"></div>
+<h3>Final Keystream</h3>
+<div id="keyStreamBox" class="cssbox" ></div>
+<p><span id="qualityMsg">Information about keystream quality will appear here</span></p>
+<p>&nbsp;</p>
+<h2>Step 4. Encrypted Ciphertext / Decrypted Plaintext</h2>
+<p>Finally, we subtract (again modulo 6, which means that we add 6 every time the first digit is smaller than the one being subtracted, no carries) the encoded plaintext (encoded ciphertext, when decrypting) from the keystream, resulting in the raw ciphertext below (plaintext, when decrypting), which is ready to be sent out. The next step only serves to convert back to letters and digits. Because this is output, the cells are shaded green.</p>
+<h3>Raw Ciphertext / Encoded Plaintext</h3>
+<div id="cipherBox" class="cssbox" style="background-color:#DCF2D1;"></div>
+<p>&nbsp;</p>
+<h3>Text-based Ciphertext / Final Plaintext</h3>
+<div id="cipherTextBox" class="cssbox" style="background-color:#DCF2D1;font-size:larger;"></div>
+<h3>&nbsp;</h3>
+<h3>As above, without spaces</h3>
+<div id="cipherTextBox2" class="cssbox" style="background-color:#DCF2D1;font-size:larger;"></div>
+<p>&nbsp;</p>
+</body>
+</html>
