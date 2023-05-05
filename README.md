@@ -41,6 +41,8 @@ Letteracci.html: adding single-layer long text randomized by LFG
 
 Numeracci.html: straddling checkerboard plus single-layer LFG-randomized long text
 
+PLhuman.html: version of FibonaRNG implemented into PassLok; has a method to add spaces and punctuation, plus error correction
+
 README.md: this file
 
 Scrabble.html: simplified ChaoCipher algorithm using two Scrabble tile alphabets	
