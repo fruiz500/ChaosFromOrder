@@ -43,6 +43,8 @@ Numeracci.html: straddling checkerboard plus single-layer LFG-randomized long te
 
 PLhuman.html: version of FibonaRNG implemented into PassLok; has a method to add spaces and punctuation, plus error correction
 
+PolyCrypt: more secure cipher evolved from PLhuman; can emulate classic ciphers as well
+
 README.md: this file
 
 Scrabble.html: simplified ChaoCipher algorithm using two Scrabble tile alphabets	
