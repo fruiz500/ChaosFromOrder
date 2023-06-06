@@ -1,7 +1,7 @@
 # ChaosFromOrder
 High-security ciphers that can be done by hand, coded in JavaScript
 
-This page contains a number of JavaScript-coded files that demonstrate different encryption methods that can be performed by hand. They require only pencil and paper, plus maybe a ready-made Tabula Recta or a set of Scrabble tiles. Fairly long articles on the different ciphers can be found at my blog: https://prgomez.com
+This page contains a number of JavaScript-coded files that demonstrate different encryption methods that are human-computable. They require only pencil and paper, plus maybe a ready-made Tabula Recta or a set of Scrabble tiles. Fairly long articles on the different ciphers can be found at my blog: https://prgomez.com
 
 Here's a list of the files and what they do (LFG means lagged Fibonacci generator):
 
@@ -51,13 +51,13 @@ Scrabble.html: simplified ChaoCipher algorithm using two Scrabble tile alphabets
 
 Serpentine.html: 5-letter autokey using Tabula Recta	
 
-Skink.html: 4-letter autokey using Tabula Recta
+Skink.html: 4-letter serpentine autokey using Tabula Recta
 
-Snake.html: 4-letter operations to add triple-length long key	
+Snake.html: 4-letter serpentine operations to add triple-length long key	
 
 Subtracci.html: Triple Text using simpler subtractions rather than additions, but not chained as in Snake	
 
-SuperAphid.html: Aphid plsu transposition
+SuperAphid.html: Aphid plus transposition
 
 SuperFileine.html: Fileine plus transposition
 
@@ -69,7 +69,7 @@ SuperVisionnaire.html: Visionnaire plus transposition
 
 SuperWorm.html: Worm plus transposition
 
-TripleText.html: adding triple-leyer long text	
+TripleText.html: adding triple-layer long text
 
 Visionnaire.html: 2-letter autokey using Tabula Recta
 
@@ -77,4 +77,4 @@ Worm.html: 4-letter autokey/Vigenere using Tabula Recta
 
 Zigzag.html: 3-letter autokey using Tabula Recta	
 
-alphabet.html: uses snake operations to make mixed alphabet from a long piece of text
+alphabet.html: uses serpentine operations to make mixed alphabet from a long piece of text
