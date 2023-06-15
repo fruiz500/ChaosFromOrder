@@ -338,7 +338,7 @@ function makeCipher(){
 
 	var	seedLength = seedArray.length;															//from the key used for the seed
 	
-	var	length = text.length + seedLength,						//this includes the prepended seed
+	var	length = encryptMode.checked ? text.length + seedLength : text.length,					//this includes the prepended seed
 		textArray = new Array(length),
 		cipherArray = new Array(length),
 		spacer = '';
