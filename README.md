@@ -41,6 +41,8 @@ Letteracci.html: adding single-layer long text randomized by LFG
 
 Numeracci.html: straddling checkerboard plus single-layer LFG-randomized long text
 
+PasswordPrava.html: password generation from a challenge text, using a tabula Prava with 2 substitution alphabets
+
 PLhuman.html: version of FibonaRNG implemented into PassLok; has a method to add spaces and punctuation, plus error correction
 
 PolyCrypt: more secure cipher evolved from PLhuman; can emulate classic ciphers as well
